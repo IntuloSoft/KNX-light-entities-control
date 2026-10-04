@@ -85,6 +85,41 @@ async def test_knx_switch_turns_light_on(mock: MockBlueprint):
         DPT.binary(1),
     )
 
+async def test_knx_switch_read_request(mock: MockBlueprint):
+
+    await mock.hass.services.async_call(
+        "light",
+        "turn_on",
+        {
+            "entity_id": "light.test",
+        },
+        blocking=True,
+    )
+    await mock.wait_for_idle()
+
+    mock.clear_knx_tx()
+
+    await mock.send_knx_group_value_read(
+        SWITCH_STATE_ADDRESS,
+    )
+    
+    await mock.wait_for_idle()
+
+    mock.assert_last_knx_group_value_response(
+        SWITCH_STATE_ADDRESS,
+        DPT.binary(1),
+    )
+
+    mock.clear_knx_tx()
+
+    await mock.send_knx_group_value_read(
+        SWITCH_ADDRESS,
+    )
+    
+    await mock.wait_for_idle()
+    
+    assert len(mock.tx_telegrams) == 0
+
 async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
 
     await mock.send_knx_group_value_write(
@@ -175,5 +210,5 @@ async def test_knx_brightness_read_request(mock: MockBlueprint):
     )
     
     await mock.wait_for_idle()
-    
+
     assert len(mock.tx_telegrams) == 0
