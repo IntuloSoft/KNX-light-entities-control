@@ -1,4 +1,5 @@
 from pathlib import Path
+from dataclasses import dataclass
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from homeassistant.components.automation import DOMAIN as AUTOMATION_DOMAIN
@@ -19,11 +20,54 @@ from xknx.telegram.apci import (
 
 from mocks.mock_light import MockLight
 
+@dataclass
+class KnxValue:
+    payload: any
+    value: any
+    dpt_name: str
+
+class DPT:
+
+    @staticmethod
+    def binary(value: bool):
+        return KnxValue(
+            payload=int(value),
+            value=value,
+            dpt_name="DPTBinary",
+        )
+
+    @staticmethod
+    def percent(value: int):
+        return KnxValue(
+            payload=[value],
+            value=value,
+            dpt_name="DPTPercentU8",
+        )
+
+    @staticmethod
+    def rgb(r: int, g: int, b: int):
+        return KnxValue(
+            payload=[r, g, b],
+            value=[r, g, b],
+            dpt_name="DPTRGB",
+        )
+
+    @staticmethod
+    def color_temperature(kelvin: int):
+        return KnxValue(
+            payload=kelvin,
+            value=kelvin,
+            dpt_name="DPTColorTemperature",
+        )
+
 class MockBlueprint():
     def __init__(self, hass: HomeAssistant):
         self.hass = hass
         self.tx_telegrams = []
         self.light = None
+
+    async def wait_for_idle(self):
+        await self.hass.async_block_till_done()
 
     async def load_blueprint_from_file(
         self,
@@ -92,7 +136,7 @@ class MockBlueprint():
     def _assert_last_knx_send(
         self,
         address: str,
-        payload=None,
+        dpt,
         response: bool = False,
     ):
         assert len(self.tx_telegrams) > 0
@@ -100,34 +144,33 @@ class MockBlueprint():
         call = self.tx_telegrams[-1]
 
         assert call.data["address"] == address
-
-        if payload is not None:
-            assert call.data["payload"] == payload
-
+        assert call.data["payload"] == dpt.payload
         assert call.data.get("response", False) == response
-
 
     def assert_last_knx_group_value_write(
         self,
         address: str,
-        payload,
+        dpt,
     ):
         self._assert_last_knx_send(
-            address=address,
-            payload=payload,
+            address,
+            dpt,
             response=False,
         )
 
     def assert_last_knx_group_value_response(
         self,
         address: str,
-        payload,
+        dpt,
     ):
         self._assert_last_knx_send(
-            address=address,
-            payload=payload,
+            address,
+            dpt,
             response=True,
         )
+
+    def clear_knx_tx(self):
+        self.tx_telegrams.clear()
 
     def assert_last_knx_group_value_read(
         self,
@@ -153,12 +196,14 @@ class MockBlueprint():
     async def _send_knx_telegram(
         self,
         destination,
-        apci,
-        payload=None,
+        apci_type,
+        dpt=None,
     ):
         telegram = Telegram(
             destination_address=GroupAddress(destination),
-            payload=apci,
+            payload=apci_type(
+                dpt.payload
+            ) if dpt else apci_type(),
         )
 
         telegram.direction = TelegramDirection.INCOMING
@@ -167,10 +212,16 @@ class MockBlueprint():
             "destination": destination,
             "destination_name": "",
             "direction": "Incoming",
-            "payload": payload,
-            "value": payload,
-            "dpt_name": "DPTBinary",
         }
+
+        if dpt is not None:
+            telegram_dict.update(
+                {
+                    "payload": dpt.payload,
+                    "value": dpt.value,
+                    "dpt_name": dpt.dpt_name,
+                }
+            )
 
         async_dispatcher_send(
             self.hass,
@@ -184,37 +235,36 @@ class MockBlueprint():
     async def send_knx_group_value_write(
         self,
         destination,
-        payload,
+        dpt,
     ):
         await self._send_knx_telegram(
             destination,
-            GroupValueWrite(payload),
-            payload,
+            GroupValueWrite,
+            dpt,
         )
-
+    
     async def send_knx_group_value_read(
         self,
         destination,
     ):
         await self._send_knx_telegram(
             destination,
-            GroupValueRead(),
+            GroupValueRead,
             None,
         )
 
     async def send_knx_group_value_response(
         self,
         destination: str,
-        payload,
+        dpt,
     ):
         await self._send_knx_telegram(
             destination,
-            GroupValueResponse(payload),
-            payload,
+            GroupValueResponse,
+            dpt,
         )
 
     # Light functionality
-
     async def add_test_light(
         self,
         entity_id: str = "light.test",

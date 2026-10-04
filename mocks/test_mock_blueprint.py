@@ -1,9 +1,10 @@
 import pytest
 
 from unittest.mock import Mock
-
-from mock_blueprint import MockBlueprint
-
+from mocks.mock_blueprint import (
+    MockBlueprint, 
+    DPT,
+)
 
 @pytest.fixture
 async def mock(hass):
@@ -53,7 +54,7 @@ def test_assert_last_knx_group_value_write(mock):
 
     mock.assert_last_knx_group_value_write(
         "1/1/1",
-        1,
+        DPT.binary(1),
     )
 
 
@@ -71,7 +72,7 @@ def test_assert_last_knx_group_value_response(mock):
 
     mock.assert_last_knx_group_value_response(
         "1/1/1",
-        1,
+        DPT.binary(1),
     )
 
 
@@ -96,7 +97,7 @@ async def test_send_knx_group_value_write_does_not_crash(
 
     await mock.send_knx_group_value_write(
         "1/1/1",
-        1,
+        DPT.binary(1),
     )
 
 
@@ -115,5 +116,5 @@ async def test_send_knx_group_value_response_does_not_crash(
 
     await mock.send_knx_group_value_response(
         "1/1/1",
-        1,
+        DPT.binary(1),
     )
