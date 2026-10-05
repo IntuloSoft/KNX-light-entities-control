@@ -6,6 +6,13 @@ from homeassistant.setup import async_setup_component
 from mocks.mock_blueprint import (
     MockBlueprint, 
     DPT,
+    KnxTelegram,
+)
+
+from xknx.telegram.apci import (
+    GroupValueRead,
+    GroupValueWrite,
+    GroupValueResponse,
 )
 
 from mocks.mock_light import MockLight
@@ -49,6 +56,10 @@ async def mock(hass: HomeAssistant):
             "switch_state_address": SWITCH_STATE_ADDRESS,
             "value_address": VALUE_ADDRESS,
             "value_state_address": VALUE_STATE_ADDRESS,
+            "temperature_address": TEMPERATURE_ADDRESS,
+            "temperature_state_address": TEMPERATURE_STATE_ADDRESS,
+            "rgb_color_address": RGB_COLOR_ADDRESS,
+            "rgb_color_state_address": RGB_COLOR_STATE_ADDRESS,
         },
     )
 
@@ -80,9 +91,10 @@ async def test_knx_switch_turns_light_on(mock: MockBlueprint):
         "on",
     )
 
-    mock.assert_last_knx_group_value_write(
-        SWITCH_STATE_ADDRESS,
-        DPT.binary(1),
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(SWITCH_STATE_ADDRESS, GroupValueWrite, DPT.binary(1))
+        ]
     )
 
 async def test_knx_switch_read_request(mock: MockBlueprint):
@@ -105,9 +117,10 @@ async def test_knx_switch_read_request(mock: MockBlueprint):
     
     await mock.wait_for_idle()
 
-    mock.assert_last_knx_group_value_response(
-        SWITCH_STATE_ADDRESS,
-        DPT.binary(1),
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(SWITCH_STATE_ADDRESS, GroupValueResponse, DPT.binary(1))
+        ]
     )
 
     mock.clear_knx_tx()
@@ -119,6 +132,7 @@ async def test_knx_switch_read_request(mock: MockBlueprint):
     await mock.wait_for_idle()
     
     assert len(mock.tx_telegrams) == 0
+    mock.assert_knx_telegrams([])
 
 async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
 
@@ -151,9 +165,11 @@ async def test_light_brightness_feedback(mock: MockBlueprint):
     )
     await mock.wait_for_idle()
 
-    mock.assert_last_knx_group_value_write(
-        VALUE_STATE_ADDRESS,
-        DPT.percent(128),
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(SWITCH_STATE_ADDRESS, GroupValueWrite, DPT.binary(1)),
+            KnxTelegram(VALUE_STATE_ADDRESS, GroupValueWrite, DPT.percent(128))
+        ]
     )
 
 async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
@@ -198,9 +214,10 @@ async def test_knx_brightness_read_request(mock: MockBlueprint):
     
     await mock.wait_for_idle()
 
-    mock.assert_last_knx_group_value_response(
-        VALUE_STATE_ADDRESS,
-        DPT.percent(180),
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(VALUE_STATE_ADDRESS, GroupValueResponse, DPT.percent(180))
+        ]
     )
 
     mock.clear_knx_tx()
@@ -212,3 +229,192 @@ async def test_knx_brightness_read_request(mock: MockBlueprint):
     await mock.wait_for_idle()
 
     assert len(mock.tx_telegrams) == 0
+
+async def test_knx_rgb_turns_light_on(
+    mock: MockBlueprint,
+):
+
+    await mock.send_knx_group_value_write(
+        RGB_COLOR_ADDRESS,
+        DPT.rgb(255, 0, 0),
+    )
+
+    state = mock.hass.states.get(
+        "light.test"
+    )
+
+    assert state.state == "on"
+
+    assert (
+        state.attributes["rgb_color"]
+        == (255, 0, 0)
+    )
+
+async def test_light_rgb_feedback(
+    mock: MockBlueprint,
+):
+
+    await mock.hass.services.async_call(
+        "light",
+        "turn_on",
+        {
+            "entity_id": "light.test",
+            "rgb_color": (255, 0, 0),
+        },
+        blocking=True,
+    )
+
+    await mock.wait_for_idle()
+
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(SWITCH_STATE_ADDRESS, GroupValueWrite, DPT.binary(True)),
+            KnxTelegram(
+                RGB_COLOR_STATE_ADDRESS,
+                GroupValueWrite,
+                DPT.rgb(255, 0, 0),
+            ),
+        ]
+    )
+
+async def test_knx_rgb_read_request(
+    mock: MockBlueprint,
+):
+
+    await mock.hass.services.async_call(
+        "light",
+        "turn_on",
+        {
+            "entity_id": "light.test",
+            "rgb_color": (255, 0, 0),
+        },
+        blocking=True,
+    )
+
+    await mock.wait_for_idle()
+
+    mock.tx_telegrams.clear()
+
+    await mock.send_knx_group_value_read(RGB_COLOR_STATE_ADDRESS)
+
+    await mock.wait_for_idle()
+
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(
+                RGB_COLOR_STATE_ADDRESS,
+                GroupValueResponse,
+                DPT.rgb(255, 0, 0),
+            ),
+        ]
+    )
+
+    mock.clear_knx_tx()
+
+    await mock.send_knx_group_value_read(RGB_COLOR_ADDRESS)
+    
+    await mock.wait_for_idle()
+
+    mock.assert_knx_telegrams([])
+
+async def test_knx_cct_turns_light_on(
+    mock: MockBlueprint,
+):
+
+    await mock.send_knx_group_value_write(
+        TEMPERATURE_ADDRESS,
+        DPT.color_temperature(3000),
+    )
+
+    state = mock.hass.states.get(
+        "light.test"
+    )
+
+    assert state.state == "on"
+
+    assert (
+        state.attributes["color_temp_kelvin"]
+        == 3000
+    )
+
+async def test_light_cct_feedback(
+    mock: MockBlueprint,
+):
+
+    await mock.hass.services.async_call(
+        "light",
+        "turn_on",
+        {
+            "entity_id": "light.test",
+            "color_temp_kelvin": 3000,
+        },
+        blocking=True,
+    )
+
+    await mock.wait_for_idle()
+
+
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(
+                SWITCH_STATE_ADDRESS,
+                GroupValueWrite,
+                DPT.binary(True),
+            ),
+            KnxTelegram(
+                TEMPERATURE_STATE_ADDRESS,
+                GroupValueWrite,
+                DPT.color_temperature(3000),
+            ),
+            KnxTelegram(
+                RGB_COLOR_STATE_ADDRESS,
+                GroupValueWrite,
+                DPT.rgb(255, 177, 110),
+            ),
+        ]
+    )
+    
+
+async def test_knx_cct_read_request(
+    mock: MockBlueprint,
+):
+
+    await mock.hass.services.async_call(
+        "light",
+        "turn_on",
+        {
+            "entity_id": "light.test",
+            "color_temp_kelvin": 3000,
+        },
+        blocking=True,
+    )
+
+    await mock.wait_for_idle()
+
+    mock.tx_telegrams.clear()
+
+    await mock.send_knx_group_value_read(
+        TEMPERATURE_STATE_ADDRESS,
+    )
+
+    await mock.wait_for_idle()
+
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(
+                TEMPERATURE_STATE_ADDRESS,
+                GroupValueResponse,
+                DPT.color_temperature(3000),
+            ),
+        ]
+    )
+
+    mock.clear_knx_tx()
+
+    await mock.send_knx_group_value_read(
+        TEMPERATURE_ADDRESS,
+    )
+    
+    await mock.wait_for_idle()
+
+    mock.assert_knx_telegrams([])

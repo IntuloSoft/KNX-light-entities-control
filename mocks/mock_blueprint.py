@@ -1,5 +1,6 @@
 from pathlib import Path
 from dataclasses import dataclass
+from enum import Enum, auto
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from homeassistant.components.automation import DOMAIN as AUTOMATION_DOMAIN
@@ -25,6 +26,13 @@ class KnxValue:
     payload: any
     value: any
     dpt_name: str
+
+
+@dataclass(frozen=True)
+class KnxTelegram:
+    address: str
+    telegram_type: type
+    dpt: object | None = None
 
 class DPT:
 
@@ -133,56 +141,38 @@ class MockBlueprint():
             )
         await self.hass.async_block_till_done()
 
-    def _assert_last_knx_send(
+    def assert_knx_telegrams(
         self,
-        address: str,
-        dpt,
-        response: bool = False,
+        expected: list[KnxTelegram],
     ):
-        assert len(self.tx_telegrams) > 0
+        assert len(self.tx_telegrams) == len(expected), f"telegrams: {self.tx_telegrams}\n{expected}"
 
-        call = self.tx_telegrams[-1]
+        for actual, exp in zip(
+            self.tx_telegrams,
+            expected,
+            strict=True,
+        ):
+            assert (
+                actual.data["address"]
+                == exp.address
+            )
 
-        assert call.data["address"] == address
-        assert call.data["payload"] == dpt.payload
-        assert call.data.get("response", False) == response
+            if exp.dpt is not None:
+                assert (
+                    actual.data["payload"]
+                    == exp.dpt.payload
+                )
 
-    def assert_last_knx_group_value_write(
-        self,
-        address: str,
-        dpt,
-    ):
-        self._assert_last_knx_send(
-            address,
-            dpt,
-            response=False,
-        )
+            actual_type = (
+                GroupValueResponse
+                if actual.data.get("response", False)
+                else GroupValueWrite
+            )
 
-    def assert_last_knx_group_value_response(
-        self,
-        address: str,
-        dpt,
-    ):
-        self._assert_last_knx_send(
-            address,
-            dpt,
-            response=True,
-        )
+            assert actual_type is exp.telegram_type
 
     def clear_knx_tx(self):
         self.tx_telegrams.clear()
-
-    def assert_last_knx_group_value_read(
-        self,
-        address: str,
-    ):
-        assert len(self.tx_telegrams) > 0
-
-        call = self.tx_telegrams[-1]
-
-        assert call.data["address"] == address
-        assert "payload" not in call.data
-        assert call.data.get("response", False) is False
 
     def assert_knx_tx_count(
         self,
