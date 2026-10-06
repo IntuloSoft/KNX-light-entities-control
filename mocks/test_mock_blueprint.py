@@ -1,10 +1,17 @@
 import pytest
 
-from unittest.mock import Mock
 from mocks.mock_blueprint import (
     MockBlueprint, 
     DPT,
+    KnxTelegram,
 )
+
+from xknx.telegram.apci import (
+    GroupValueRead,
+    GroupValueWrite,
+    GroupValueResponse,
+)
+
 
 @pytest.fixture
 async def mock(hass):
@@ -30,91 +37,214 @@ async def test_assert_state(mock):
         "on",
     )
 
+async def test_knx_telegram_trace(mock):
 
-def test_assert_knx_tx_count(mock):
+    await mock.add_input_boolean("test")
+    
+    blueprint = """
+blueprint:
+  name: Telegram Trace Test
+  domain: automation
 
-    mock.tx_telegrams = [
-        object(),
-        object(),
-    ]
+  input:
+    entity:
+      selector:
+        entity:
 
-    mock.assert_knx_tx_count(2)
+trigger:
+  - platform: state
+    entity_id: !input entity
 
+action:
+  # Write
+  - action: knx.send
+    data:
+      address: "1/1/1"
+      payload: 1
 
-def test_assert_last_knx_group_value_write(mock):
+  # Response
+  - action: knx.send
+    data:
+      address: "1/1/2"
+      payload: 1
+      response: true
 
-    call = Mock()
+  # Read
+  - action: knx.read
+    data:
+      address: "1/1/3"
+"""
 
-    call.data = {
-        "address": "1/1/1",
-        "payload": 1,
-    }
-
-    mock.tx_telegrams.append(call)
-
-    mock.assert_last_knx_group_value_write(
-        "1/1/1",
-        DPT.binary(1),
+    await mock._load_blueprint_file(
+        blueprint,
+        "telegram_trace_test.yaml",
     )
 
-
-def test_assert_last_knx_group_value_response(mock):
-
-    call = Mock()
-
-    call.data = {
-        "address": "1/1/1",
-        "payload": 1,
-        "response": True,
-    }
-
-    mock.tx_telegrams.append(call)
-
-    mock.assert_last_knx_group_value_response(
-        "1/1/1",
-        DPT.binary(1),
+    await mock.load_blueprint_instance(
+        "telegram_trace_test.yaml",
+        {
+            "entity": "input_boolean.test",
+        },
     )
 
-
-def test_assert_last_knx_group_value_read(mock):
-
-    call = Mock()
-
-    call.data = {
-        "address": "1/1/1",
-    }
-
-    mock.tx_telegrams.append(call)
-
-    mock.assert_last_knx_group_value_read(
-        "1/1/1",
+    await mock.hass.services.async_call(
+        "input_boolean",
+        "turn_on",
+        {
+            "entity_id": "input_boolean.test",
+        },
+        blocking=True,
     )
 
+    await mock.wait_for_idle()
 
-async def test_send_knx_group_value_write_does_not_crash(
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(
+                "1/1/1",
+                GroupValueWrite,
+                DPT.binary(True),
+            ),
+            KnxTelegram(
+                "1/1/2",
+                GroupValueResponse,
+                DPT.binary(True),
+            ),
+            KnxTelegram(
+                "1/1/3",
+                GroupValueRead,
+            ),
+        ]
+    )
+
+async def test_advance_time_wait_template_timeout(mock):
+    await mock.add_input_boolean("test")
+
+    blueprint = """
+blueprint:
+  name: Wait Test
+  domain: automation
+
+  input:
+    entity:
+      selector:
+        entity:
+
+trigger:
+  - platform: state
+    entity_id: !input entity
+
+action:
+  - wait_template: "{{ false }}"
+    timeout:
+      seconds: 1
+    continue_on_timeout: true
+
+  - action: knx.send
+    data:
+      address: "1/1/1"
+      payload: 1
+"""
+
+    await mock._load_blueprint_file(
+        blueprint,
+        "wait_test.yaml",
+    )
+
+    await mock.load_blueprint_instance(
+        "wait_test.yaml",
+        {
+            "entity": "input_boolean.test",
+        },
+    )
+
+    await mock.hass.services.async_call(
+        "input_boolean",
+        "turn_on",
+        {
+            "entity_id": "input_boolean.test",
+        },
+        blocking=True,
+    )
+
+    mock.assert_knx_telegrams([])
+
+    await mock.advance_time_ms(900)
+
+    mock.assert_knx_telegrams([])
+
+    await mock.advance_time_ms(200)
+
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram(
+                "1/1/1",
+                GroupValueWrite,
+                DPT.binary(True),
+            ),
+        ]
+    )
+
+async def test_wait_template_timeout_aborts_script(
     mock,
 ):
-
-    await mock.send_knx_group_value_write(
-        "1/1/1",
-        DPT.binary(1),
+    await mock.add_input_boolean(
+        "test"
     )
 
+    blueprint = """
+blueprint:
+  name: Wait Abort Test
+  domain: automation
 
-async def test_send_knx_group_value_read_does_not_crash(
-    mock,
-):
+  input:
+    entity:
+      selector:
+        entity:
 
-    await mock.send_knx_group_value_read(
-        "1/1/1",
+trigger:
+  - platform: state
+    entity_id: !input entity
+
+action:
+  - wait_template: "{{ false }}"
+    timeout:
+      seconds: 1
+    continue_on_timeout: false
+
+  - action: knx.send
+    data:
+      address: "1/1/1"
+      payload: 1
+"""
+
+    await mock._load_blueprint_file(
+        blueprint,
+        "wait_abort_test.yaml",
     )
 
-
-async def test_send_knx_group_value_response_does_not_crash(
-    mock,
-):
-
-    await mock.send_knx_group_value_response(
-        "1/1/1",
-        DPT.binary(1),
+    await mock.load_blueprint_instance(
+        "wait_abort_test.yaml",
+        {
+            "entity": "input_boolean.test",
+        },
     )
+
+    await mock.hass.services.async_call(
+        "input_boolean",
+        "turn_on",
+        {
+            "entity_id": "input_boolean.test",
+        },
+        blocking=True,
+    )
+
+    mock.assert_knx_telegrams([])
+
+    await mock.advance_time_ms(900)
+
+    mock.assert_knx_telegrams([])
+
+    await mock.advance_time_ms(200)
+
+    mock.assert_knx_telegrams([])

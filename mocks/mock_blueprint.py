@@ -1,11 +1,21 @@
 from pathlib import Path
+import asyncio
 from dataclasses import dataclass
-from enum import Enum, auto
+from datetime import timedelta
+from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 from homeassistant.components.automation import DOMAIN as AUTOMATION_DOMAIN
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+
+from pytest_homeassistant_custom_component.common import (
+    async_fire_time_changed,
+)
+
+from homeassistant.helpers.event import (
+    time_tracker_utcnow,
+)
 
 from homeassistant.components.knx.telegrams import (
     SIGNAL_KNX_TELEGRAM,
@@ -23,8 +33,8 @@ from mocks.mock_light import MockLight
 
 @dataclass
 class KnxValue:
-    payload: any
-    value: any
+    payload: Any
+    value: Any
     dpt_name: str
 
 
@@ -32,7 +42,7 @@ class KnxValue:
 class KnxTelegram:
     address: str
     telegram_type: type
-    dpt: object | None = None
+    dpt: KnxValue | None = None
 
 class DPT:
 
@@ -73,9 +83,49 @@ class MockBlueprint():
         self.hass = hass
         self.tx_telegrams = []
         self.light = None
+        self._current_time = None
 
     async def wait_for_idle(self):
         await self.hass.async_block_till_done()
+
+    async def advance_time(
+        self,
+        milliseconds=0,
+        seconds=0,
+    ):
+        if self._current_time is None:
+            self._current_time = time_tracker_utcnow()
+
+        self._current_time += timedelta(
+            milliseconds=milliseconds,
+            seconds=seconds,
+        )
+
+        async_fire_time_changed(
+            self.hass,
+            self._current_time,
+        )
+
+        await self._flush_event_loop()
+
+    async def _flush_event_loop(
+        self,
+        max_iterations=20,
+    ):
+        """
+        Process scheduled HA callbacks that may have been
+        queued by async_fire_time_changed().
+        """
+        for _ in range(max_iterations):
+            await asyncio.sleep(0)
+    
+    async def advance_time_ms(
+        self,
+        milliseconds: int,
+    ):
+        await self.advance_time(
+            milliseconds=milliseconds,
+        )
 
     async def load_blueprint_from_file(
         self,
@@ -91,8 +141,6 @@ class MockBlueprint():
         return blueprint_filename
 
     async def _load_blueprint_file(self, blueprint_str, blueprint_filename):
-        """Schrijf blueprint naar de testconfig."""
-
         bp_dir = Path(self.hass.config.path("blueprints/automation/test"))
         bp_dir.mkdir(parents=True, exist_ok=True)
 
@@ -122,6 +170,7 @@ class MockBlueprint():
             },
         )
 
+
     async def register_service(self,domain,service_name,cb):
         self.hass.services.async_register(
             domain,
@@ -129,59 +178,157 @@ class MockBlueprint():
             cb,
         )
 
+    # input_boolean
+    async def add_input_boolean(
+        self,
+        name: str,
+    ):
+        assert await async_setup_component(
+            self.hass,
+            "input_boolean",
+            {
+                "input_boolean": {
+                    name: {}
+                }
+            },
+        )
+
+
     # KNX functionality
-    async def _on_knx_tx(self,knx_tx_telegram):
-        self.tx_telegrams.append(knx_tx_telegram)
+    def _store_knx_telegram(
+        self,
+        address: str,
+        telegram_type: type,
+        dpt=None,
+    ):
+        self.tx_telegrams.append(
+            KnxTelegram(
+                address=address,
+                telegram_type=telegram_type,
+                dpt=dpt,
+            )
+        )
+
+    async def _on_knx_send(
+        self,
+        service_call,
+    ):
+        telegram_type = (
+            GroupValueResponse
+            if service_call.data.get(
+                "response",
+                False,
+            )
+            else GroupValueWrite
+        )
+
+        dpt = None
+
+        if "payload" in service_call.data:
+            dpt = KnxValue(
+                payload=service_call.data["payload"],
+                value=None,
+                dpt_name=None,
+            )
+
+        self._store_knx_telegram(
+            address=service_call.data["address"],
+            telegram_type=telegram_type,
+            dpt=dpt,
+        )
+
+    async def _on_knx_read(
+        self,
+        service_call,
+    ):
+        self._store_knx_telegram(
+            address=service_call.data["address"],
+            telegram_type=GroupValueRead,
+        )
 
     async def register_on_knx_transmit(self):
+
         await self.register_service(
-                "knx",
-                "send",
-                self._on_knx_tx,
-            )
+            "knx",
+            "send",
+            self._on_knx_send,
+        )
+
+        await self.register_service(
+            "knx",
+            "read",
+            self._on_knx_read,
+        )
+
         await self.hass.async_block_till_done()
+    
 
     def assert_knx_telegrams(
         self,
         expected: list[KnxTelegram],
     ):
-        assert len(self.tx_telegrams) == len(expected), f"telegrams: {self.tx_telegrams}\n{expected}"
 
-        for actual, exp in zip(
-            self.tx_telegrams,
-            expected,
-            strict=True,
+        assert (
+            len(self.tx_telegrams)
+            == len(expected)
+        ), (
+            f"Telegram count mismatch.\n"
+            f"Expected: {len(expected)}\n"
+            f"Actual:   {len(self.tx_telegrams)}\n"
+            f"Actual telegrams:\n{self.tx_telegrams}"
+        )
+
+        for index, (actual, exp) in enumerate(
+            zip(
+                self.tx_telegrams,
+                expected,
+                strict=True,
+            )
         ):
+
             assert (
-                actual.data["address"]
+                actual.address
                 == exp.address
+            ), (
+                f"Telegram {index}: address mismatch.\n"
+                f"Expected: {exp.address}\n"
+                f"Actual:   {actual.address}\n"
+                f"Actual telegram: {actual}"
+            )
+
+            assert (
+                actual.telegram_type
+                is exp.telegram_type
+            ), (
+                f"Telegram {index}: telegram type mismatch.\n"
+                f"Expected: {exp.telegram_type.__name__}\n"
+                f"Actual:   {actual.telegram_type.__name__}\n"
+                f"Actual telegram: {actual}"
             )
 
             if exp.dpt is not None:
+
                 assert (
-                    actual.data["payload"]
-                    == exp.dpt.payload
+                    actual.dpt is not None
+                ), (
+                    f"Telegram {index}: expected DPT payload "
+                    f"but actual telegram has no DPT.\n"
+                    f"Expected DPT: {exp.dpt}"
                 )
 
-            actual_type = (
-                GroupValueResponse
-                if actual.data.get("response", False)
-                else GroupValueWrite
-            )
-
-            assert actual_type is exp.telegram_type
+                assert (
+                    actual.dpt.payload
+                    == exp.dpt.payload
+                ), (
+                    f"Telegram {index}: payload mismatch.\n"
+                    f"Expected: {exp.dpt.payload}\n"
+                    f"Actual:   {actual.dpt.payload}\n"
+                    f"Expected telegram: {exp}\n"
+                    f"Actual telegram:   {actual}"
+                )
 
     def clear_knx_tx(self):
         self.tx_telegrams.clear()
-
-    def assert_knx_tx_count(
-        self,
-        expected_count: int,
-    ):
-        assert (
-            len(self.tx_telegrams)
-            == expected_count
-        )
 
     async def _send_knx_telegram(
         self,
