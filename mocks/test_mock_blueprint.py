@@ -20,7 +20,9 @@ async def mock(hass):
 
     await mock.register_on_knx_transmit()
 
-    return mock
+    yield mock
+
+    mock.close()
 
 
 async def test_assert_state(mock):
@@ -137,7 +139,7 @@ trigger:
 action:
   - wait_template: "{{ false }}"
     timeout:
-      seconds: 1
+      milliseconds: 10000
     continue_on_timeout: true
 
   - action: knx.send
@@ -158,6 +160,8 @@ action:
         },
     )
 
+    await mock.advance_time_ms(20)
+
     await mock.hass.services.async_call(
         "input_boolean",
         "turn_on",
@@ -169,12 +173,13 @@ action:
 
     mock.assert_knx_telegrams([])
 
-    await mock.advance_time_ms(900)
+    
+    await mock.advance_time_ms(9990)
 
     mock.assert_knx_telegrams([])
 
-    await mock.advance_time_ms(200)
-
+    await mock.advance_time_ms(20)
+    
     mock.assert_knx_telegrams(
         [
             KnxTelegram(
@@ -241,10 +246,12 @@ action:
 
     mock.assert_knx_telegrams([])
 
-    await mock.advance_time_ms(900)
+    await mock.advance_time_ms(990)
 
     mock.assert_knx_telegrams([])
 
-    await mock.advance_time_ms(200)
+    await mock.advance_time_ms(20)
 
     mock.assert_knx_telegrams([])
+
+

@@ -8,9 +8,10 @@ from homeassistant.setup import async_setup_component
 from homeassistant.components.automation import DOMAIN as AUTOMATION_DOMAIN
 from homeassistant.components.light import DOMAIN as LIGHT_DOMAIN
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from unittest.mock import patch
 
 from pytest_homeassistant_custom_component.common import (
-    async_fire_time_changed,
+    get_scheduled_timer_handles
 )
 
 from homeassistant.helpers.event import (
@@ -30,6 +31,7 @@ from xknx.telegram.apci import (
 )
 
 from mocks.mock_light import MockLight
+
 
 @dataclass
 class KnxValue:
@@ -52,6 +54,36 @@ class DPT:
             payload=int(value),
             value=value,
             dpt_name="DPTBinary",
+        )
+
+    @staticmethod
+    def dim_up(step: int = 7):
+        assert 1 <= step <= 7
+
+        return KnxValue(
+            payload=8 + step,
+            value=step,
+            dpt_name="DPTControlDimming",
+        )
+
+
+    @staticmethod
+    def dim_down(step: int = 7):
+        assert 1 <= step <= 7
+
+        return KnxValue(
+            payload=step,
+            value=step,
+            dpt_name="DPTControlDimming",
+        )
+
+
+    @staticmethod
+    def dim_stop():
+        return KnxValue(
+            payload=0,
+            value=0,
+            dpt_name="DPTControlDimming",
         )
 
     @staticmethod
@@ -78,55 +110,72 @@ class DPT:
             dpt_name="DPTColorTemperature",
         )
 
+
+
 class MockBlueprint():
-    def __init__(self, hass: HomeAssistant):
+    def __init__(
+            self, 
+            hass: HomeAssistant,
+        ):
         self.hass = hass
         self.tx_telegrams = []
         self.light = None
-        self._current_time = None
+        self._wall_time = time_tracker_utcnow()
+        self._monotonic_time = 0.0
 
+        loop = asyncio.get_running_loop()
+        
+        self._loop_time_patch = patch.object(
+            loop,
+            "time",
+            self.current_monotonic,
+        )
+
+        self._loop_time_patch.start()
+
+    def close(self):
+        self._loop_time_patch.stop()
+
+    def _process_due_timers(self):
+
+        for task in list(
+            get_scheduled_timer_handles(
+                self.hass.loop
+            )
+        ):
+            if task.cancelled():
+                continue
+
+            if task.when() <= self.hass.loop.time():
+                task._run()
+                task.cancel()
+    
+
+    def current_datetime(self):
+        return self._wall_time
+
+    def current_monotonic(self):
+        return self._monotonic_time
+    
     async def wait_for_idle(self):
         await self.hass.async_block_till_done()
 
-    async def advance_time(
-        self,
-        milliseconds=0,
-        seconds=0,
-    ):
-        if self._current_time is None:
-            self._current_time = time_tracker_utcnow()
-
-        self._current_time += timedelta(
-            milliseconds=milliseconds,
-            seconds=seconds,
-        )
-
-        async_fire_time_changed(
-            self.hass,
-            self._current_time,
-        )
-
-        await self._flush_event_loop()
-
-    async def _flush_event_loop(
-        self,
-        max_iterations=20,
-    ):
-        """
-        Process scheduled HA callbacks that may have been
-        queued by async_fire_time_changed().
-        """
-        for _ in range(max_iterations):
-            await asyncio.sleep(0)
-    
     async def advance_time_ms(
         self,
         milliseconds: int,
     ):
-        await self.advance_time(
-            milliseconds=milliseconds,
-        )
+        for _ in range(milliseconds):
 
+            self._wall_time += timedelta(
+                milliseconds=1
+            )
+
+            self._monotonic_time += 0.001
+
+            self._process_due_timers()
+
+            await asyncio.sleep(0)
+        
     async def load_blueprint_from_file(
         self,
         source_file: Path,
@@ -189,6 +238,27 @@ class MockBlueprint():
             {
                 "input_boolean": {
                     name: {}
+                }
+            },
+        )
+
+    async def add_input_number(
+        self,
+        name: str,
+        min_value: float = 0,
+        max_value: float = 255,
+        initial_value: float = 0,
+    ):
+        assert await async_setup_component(
+            self.hass,
+            "input_number",
+            {
+                "input_number": {
+                    name: {
+                        "min": min_value,
+                        "max": max_value,
+                        "initial": initial_value,
+                    }
                 }
             },
         )
@@ -367,7 +437,7 @@ class MockBlueprint():
             telegram_dict,
         )
 
-        await self.hass.async_block_till_done()
+        # await self.hass.async_block_till_done()
 
     async def send_knx_group_value_write(
         self,
