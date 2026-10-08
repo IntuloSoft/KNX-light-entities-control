@@ -174,11 +174,11 @@ action:
     mock.assert_knx_telegrams([])
 
     
-    await mock.advance_time_ms(9990)
+    await mock.advance_time_ms(10000)
 
     mock.assert_knx_telegrams([])
 
-    await mock.advance_time_ms(20)
+    await mock.advance_time_ms(1)
     
     mock.assert_knx_telegrams(
         [

@@ -172,9 +172,10 @@ class MockBlueprint():
 
             self._monotonic_time += 0.001
 
-            self._process_due_timers()
+            for _ in range(20):
+                self._process_due_timers()
+                await asyncio.sleep(0)
 
-            await asyncio.sleep(0)
         
     async def load_blueprint_from_file(
         self,

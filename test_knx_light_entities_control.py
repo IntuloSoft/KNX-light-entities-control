@@ -511,9 +511,10 @@ async def test_advanced_dim_up_feedback_steps(
         DPT.dim_up(),
     )
 
-    INTERVAL_MS = 260
+    INTERVAL_MS = 255
     MARGIN_MS = 10
-    FINAL_STEP_MS = int((255 - 247) * INTERVAL_MS / 13)
+    FINAL_BRIGHTNESS_STEP = 255 - 247
+    FINAL_STEP_MS = int(FINAL_BRIGHTNESS_STEP * INTERVAL_MS / 13)
 
     test_data = [
         {"time": 1 * INTERVAL_MS - MARGIN_MS, "telegrams": 0},
@@ -622,7 +623,133 @@ async def test_advanced_dim_up_feedback_steps(
         ]
     )
 
-async def test_advanced_dim_up_feedback_steps2(
+async def test_advanced_dim_down_feedback_steps(
+    mock_input_number_dimming,
+):
+    await mock_input_number_dimming.hass.services.async_call(
+        "light",
+        "turn_on",
+        {
+            "entity_id": "light.test",
+            "brightness": 255,
+        },
+        blocking=True,
+    )
+
+    mock_input_number_dimming.clear_knx_tx()
+
+    await mock_input_number_dimming.send_knx_group_value_write(
+        DIMM_ADDRESS,
+        DPT.dim_down(),
+    )
+
+    INTERVAL_MS = 255
+    MARGIN_MS = 10
+
+    test_data = [
+        {"time": 1 * INTERVAL_MS - MARGIN_MS, "telegrams": 2},
+        {"time": 1 * INTERVAL_MS + MARGIN_MS, "telegrams": 3},
+
+        {"time": 2 * INTERVAL_MS - MARGIN_MS, "telegrams": 3},
+        {"time": 2 * INTERVAL_MS + MARGIN_MS, "telegrams": 4},
+
+        {"time": 3 * INTERVAL_MS - MARGIN_MS, "telegrams": 4},
+        {"time": 3 * INTERVAL_MS + MARGIN_MS, "telegrams": 5},
+
+        {"time": 4 * INTERVAL_MS - MARGIN_MS, "telegrams": 5},
+        {"time": 4 * INTERVAL_MS + MARGIN_MS, "telegrams": 6},
+
+        {"time": 5 * INTERVAL_MS - MARGIN_MS, "telegrams": 6},
+        {"time": 5 * INTERVAL_MS + MARGIN_MS, "telegrams": 7},
+
+        {"time": 6 * INTERVAL_MS - MARGIN_MS, "telegrams": 7},
+        {"time": 6 * INTERVAL_MS + MARGIN_MS, "telegrams": 8},
+
+        {"time": 7 * INTERVAL_MS - MARGIN_MS, "telegrams": 8},
+        {"time": 7 * INTERVAL_MS + MARGIN_MS, "telegrams": 9},
+
+        {"time": 8 * INTERVAL_MS - MARGIN_MS, "telegrams": 9},
+        {"time": 8 * INTERVAL_MS + MARGIN_MS, "telegrams": 10},
+
+        {"time": 9 * INTERVAL_MS - MARGIN_MS, "telegrams": 10},
+        {"time": 9 * INTERVAL_MS + MARGIN_MS, "telegrams": 11},
+
+        {"time": 10 * INTERVAL_MS - MARGIN_MS, "telegrams": 11},
+        {"time": 10 * INTERVAL_MS + MARGIN_MS, "telegrams": 12},
+
+        {"time": 11 * INTERVAL_MS - MARGIN_MS, "telegrams": 12},
+        {"time": 11 * INTERVAL_MS + MARGIN_MS, "telegrams": 13},
+
+        {"time": 12 * INTERVAL_MS - MARGIN_MS, "telegrams": 13},
+        {"time": 12 * INTERVAL_MS + MARGIN_MS, "telegrams": 14},
+
+        {"time": 13 * INTERVAL_MS - MARGIN_MS, "telegrams": 14},
+        {"time": 13 * INTERVAL_MS + MARGIN_MS, "telegrams": 15},
+
+        {"time": 14 * INTERVAL_MS - MARGIN_MS, "telegrams": 15},
+        {"time": 14 * INTERVAL_MS + MARGIN_MS, "telegrams": 16},
+
+        {"time": 15 * INTERVAL_MS - MARGIN_MS, "telegrams": 16},
+        {"time": 15 * INTERVAL_MS + MARGIN_MS, "telegrams": 17},
+
+        {"time": 16 * INTERVAL_MS - MARGIN_MS, "telegrams": 17},
+        {"time": 16 * INTERVAL_MS + MARGIN_MS, "telegrams": 18},
+
+        {"time": 17 * INTERVAL_MS - MARGIN_MS, "telegrams": 18},
+        {"time": 17 * INTERVAL_MS + MARGIN_MS, "telegrams": 19},
+
+        {"time": 18 * INTERVAL_MS - MARGIN_MS, "telegrams": 19},
+        {"time": 18 * INTERVAL_MS + MARGIN_MS, "telegrams": 20},
+
+        {"time": 19 * INTERVAL_MS - MARGIN_MS, "telegrams": 20},
+        {"time": 19 * INTERVAL_MS + MARGIN_MS, "telegrams": 21},
+    ]
+
+    previous_time = 0
+
+    for checkpoint in test_data:
+        await mock_input_number_dimming.advance_time_ms(
+            checkpoint["time"] - previous_time,
+        )
+
+        assert (
+            len(mock_input_number_dimming.tx_telegrams)
+            == checkpoint["telegrams"]
+        ), (
+            f"At t={checkpoint['time']} ms "
+            f"expected {checkpoint['telegrams']} telegrams "
+            f"but got {len(mock_input_number_dimming.tx_telegrams)}"
+        )
+
+        previous_time = checkpoint["time"]
+
+    mock_input_number_dimming.assert_knx_telegrams(
+        [
+            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(203)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(190)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(177)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(164)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(151)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(138)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(125)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(112)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(99)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(86)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(73)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(60)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(47)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(34)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(21)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(8)),
+        ]
+    )
+
+async def test_advanced_dim_up_stop(
     mock_input_number_dimming,
 ):
     await mock_input_number_dimming.hass.services.async_call(
@@ -642,87 +769,80 @@ async def test_advanced_dim_up_feedback_steps2(
         DPT.dim_up(),
     )
 
-    assert len(mock_input_number_dimming.tx_telegrams) == 0, mock_input_number_dimming.tx_telegrams
-
-    DIMM_TELEGRAM_INTERVAL = 200
-
-    #
-    # vóór eerste interval
-    #
-    await mock_input_number_dimming.advance_time_ms(
-        30000,
-    )
-
-    assert len(mock_input_number_dimming.tx_telegrams) == 21
+    await mock_input_number_dimming.advance_time_ms(800)
 
     mock_input_number_dimming.assert_knx_telegrams(
         [
-            KnxTelegram('1/1/1', GroupValueWrite, DPT.binary(True)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(13)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(26)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(39)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(52)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(65)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(78)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(91)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(104)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(117)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(130)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(143)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(156)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(169)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(182)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(195)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(208)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(221)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(234)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(247)), 
-            KnxTelegram('1/1/4', GroupValueWrite, DPT.percent(255))
+            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(13)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(26)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(39)),
         ]
     )
 
-    #
-    # eerste interval
-    #
-    # await mock_input_number_dimming.advance_time_ms(
-    #     1,
-    # )
+    await mock_input_number_dimming.send_knx_group_value_write(
+        DIMM_ADDRESS,
+        DPT.dim_stop(),
+    )
 
-    # assert len(
-    #     mock_input_number_dimming.tx_telegrams
-    # ) == 1
+    await mock_input_number_dimming.advance_time_ms(1)
 
-    # print(
-    #     mock_input_number_dimming.tx_telegrams
-    # )
+    mock_input_number_dimming.assert_knx_telegrams(
+        [
+            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(13)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(26)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(39)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(40)),
+        ]
+    )
 
-    # #
-    # # tweede interval
-    # #
-    # await mock_input_number_dimming.advance_time_ms(
-    #     DIMM_TELEGRAM_INTERVAL,
-    # )
+async def test_advanced_dim_down_stop(
+    mock_input_number_dimming,
+):
+    await mock_input_number_dimming.hass.services.async_call(
+        "light",
+        "turn_on",
+        {
+            "entity_id": "light.test",
+            "brightness": 255,
+        },
+        blocking=True,
+    )
 
-    # assert len(
-    #     mock_input_number_dimming.tx_telegrams
-    # ) == 2
+    mock_input_number_dimming.clear_knx_tx()
 
-    # print(
-    #     mock_input_number_dimming.tx_telegrams
-    # )
+    await mock_input_number_dimming.send_knx_group_value_write(
+        DIMM_ADDRESS,
+        DPT.dim_down(),
+    )
 
-    # #
-    # # derde interval
-    # #
-    # await mock_input_number_dimming.advance_time_ms(
-    #     DIMM_TELEGRAM_INTERVAL,
-    # )
+    await mock_input_number_dimming.advance_time_ms(800)
 
-    # assert len(
-    #     mock_input_number_dimming.tx_telegrams
-    # ) == 3
+    mock_input_number_dimming.assert_knx_telegrams(
+        [
+            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216)),
+        ]
+    )
 
-    # print(
-    #     mock_input_number_dimming.tx_telegrams
-    # )
+    await mock_input_number_dimming.send_knx_group_value_write(
+        DIMM_ADDRESS,
+        DPT.dim_stop(),
+    )
 
+    await mock_input_number_dimming.advance_time_ms(1)
+
+    mock_input_number_dimming.assert_knx_telegrams(
+        [
+            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216)),
+            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(215)),
+        ]
+    )
