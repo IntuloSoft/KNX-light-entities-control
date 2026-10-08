@@ -28,12 +28,34 @@ RGB_COLOR_ADDRESS           = "1/1/7"
 RGB_COLOR_STATE_ADDRESS     = "1/1/8"
 
 
+
+
 @pytest.fixture
-async def mock(hass: HomeAssistant):
+async def mock(request, hass: HomeAssistant):
+    dimmer_entity = request.param
     mock =  MockBlueprint(hass)
     await mock.register_on_knx_transmit()
     await mock.add_test_light("light.test")
-    await mock.add_input_boolean("dimmer")
+
+    inputs={
+        "light_entity": "light.test",
+        "switch_address": SWITCH_ADDRESS,
+        "switch_state_address": SWITCH_STATE_ADDRESS,
+        "dimm_address": DIMM_ADDRESS,
+        "value_address": VALUE_ADDRESS,
+        "value_state_address": VALUE_STATE_ADDRESS,
+        "temperature_address": TEMPERATURE_ADDRESS,
+        "temperature_state_address": TEMPERATURE_STATE_ADDRESS,
+        "rgb_color_address": RGB_COLOR_ADDRESS,
+        "rgb_color_state_address": RGB_COLOR_STATE_ADDRESS,
+    }
+
+    if dimmer_entity == "input_boolean":
+        await mock.add_input_boolean("dimmer")
+        inputs["dimm_entity"] = "input_boolean.dimmer"
+    elif dimmer_entity == "input_number":
+        await mock.add_input_number("dimmer", min_value = 0, max_value = 65536)
+        inputs["dimm_entity"] = "input_number.dimmer"
 
     blueprint_path = Path(__file__).parent / "blueprints" / "knx-light-entities-control.yaml"
 
@@ -41,58 +63,22 @@ async def mock(hass: HomeAssistant):
 
     await mock.load_blueprint_instance(
         blueprint_filename=blueprint_filename,
-        inputs={
-            "light_entity": "light.test",
-            "dimm_entity": "input_boolean.dimmer",
-            "switch_address": SWITCH_ADDRESS,
-            "switch_state_address": SWITCH_STATE_ADDRESS,
-            "dimm_address": DIMM_ADDRESS,
-            "value_address": VALUE_ADDRESS,
-            "value_state_address": VALUE_STATE_ADDRESS,
-            "temperature_address": TEMPERATURE_ADDRESS,
-            "temperature_state_address": TEMPERATURE_STATE_ADDRESS,
-            "rgb_color_address": RGB_COLOR_ADDRESS,
-            "rgb_color_state_address": RGB_COLOR_STATE_ADDRESS,
-        },
+        inputs=inputs,
     )
 
     yield mock
 
     mock.close()
 
-
-@pytest.fixture
-async def mock_input_number_dimming(hass: HomeAssistant):
-    mock =  MockBlueprint(hass)
-    await mock.register_on_knx_transmit()
-    await mock.add_test_light("light.test")
-    await mock.add_input_number("dimmer", min_value = 0, max_value = 65536)
-
-    blueprint_path = Path(__file__).parent / "blueprints" / "knx-light-entities-control.yaml"
-
-    blueprint_filename = await mock.load_blueprint_from_file(blueprint_path)
-
-    await mock.load_blueprint_instance(
-        blueprint_filename=blueprint_filename,
-        inputs={
-            "light_entity": "light.test",
-            "dimm_entity": "input_number.dimmer",
-            "switch_address": SWITCH_ADDRESS,
-            "switch_state_address": SWITCH_STATE_ADDRESS,
-            "dimm_address": DIMM_ADDRESS,
-            "value_address": VALUE_ADDRESS,
-            "value_state_address": VALUE_STATE_ADDRESS,
-            "temperature_address": TEMPERATURE_ADDRESS,
-            "temperature_state_address": TEMPERATURE_STATE_ADDRESS,
-            "rgb_color_address": RGB_COLOR_ADDRESS,
-            "rgb_color_state_address": RGB_COLOR_STATE_ADDRESS,
-        },
-    )
-
-    yield mock
-
-    mock.close()
-
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_light_can_turn_on(mock: MockBlueprint):
 
     await mock.hass.services.async_call(
@@ -106,6 +92,16 @@ async def test_light_can_turn_on(mock: MockBlueprint):
 
     mock.assert_state("light.test", "on")
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_switch_turns_light_on(mock: MockBlueprint):
 
     await mock.send_knx_group_value_write(
@@ -125,6 +121,15 @@ async def test_knx_switch_turns_light_on(mock: MockBlueprint):
         ]
     )
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_switch_read_request(mock: MockBlueprint):
 
     await mock.hass.services.async_call(
@@ -162,6 +167,15 @@ async def test_knx_switch_read_request(mock: MockBlueprint):
     assert len(mock.tx_telegrams) == 0
     mock.assert_knx_telegrams([])
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
 
     await mock.send_knx_group_value_write(
@@ -180,6 +194,15 @@ async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
         == 128
     )
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_light_brightness_feedback(mock: MockBlueprint):
 
     await mock.hass.services.async_call(
@@ -200,6 +223,15 @@ async def test_light_brightness_feedback(mock: MockBlueprint):
         ]
     )
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
 
     await mock.hass.services.async_call(
@@ -221,6 +253,15 @@ async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
         "off",
     )
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_brightness_read_request(mock: MockBlueprint):
 
     await mock.hass.services.async_call(
@@ -258,6 +299,15 @@ async def test_knx_brightness_read_request(mock: MockBlueprint):
 
     assert len(mock.tx_telegrams) == 0
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_rgb_turns_light_on(
     mock: MockBlueprint,
 ):
@@ -278,6 +328,15 @@ async def test_knx_rgb_turns_light_on(
         == (255, 0, 0)
     )
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_light_rgb_feedback(
     mock: MockBlueprint,
 ):
@@ -305,6 +364,15 @@ async def test_light_rgb_feedback(
         ]
     )
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_rgb_read_request(
     mock: MockBlueprint,
 ):
@@ -345,6 +413,15 @@ async def test_knx_rgb_read_request(
 
     mock.assert_knx_telegrams([])
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_cct_turns_light_on(
     mock: MockBlueprint,
 ):
@@ -365,6 +442,15 @@ async def test_knx_cct_turns_light_on(
         == 3000
     )
 
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_light_cct_feedback(
     mock: MockBlueprint,
 ):
@@ -402,7 +488,15 @@ async def test_light_cct_feedback(
         ]
     )
     
-
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+        "input_boolean",
+        None,
+    ],
+    indirect=True,
+)
 async def test_knx_cct_read_request(
     mock: MockBlueprint,
 ):
@@ -447,13 +541,16 @@ async def test_knx_cct_read_request(
 
     mock.assert_knx_telegrams([])
 
-
-async def test_classic_dim_up_to_max(mock_input_number_dimming):
-    mock = mock_input_number_dimming
-    
-    #
-    # Start at 0%
-    #
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+    ],
+    indirect=True,
+)
+async def test_advanced_dim_up_feedback_steps(
+    mock,
+):
     await mock.hass.services.async_call(
         "light",
         "turn_on",
@@ -464,49 +561,9 @@ async def test_classic_dim_up_to_max(mock_input_number_dimming):
         blocking=True,
     )
 
-    await mock.wait_for_idle()
+    mock.clear_knx_tx()
 
-    #
-    # Start dim up
-    #
     await mock.send_knx_group_value_write(
-        DIMM_ADDRESS,
-        DPT.dim_up(7),
-    )
-
-    #
-    # Let the full dim process finish
-    #
-    await mock.advance_time_ms(
-        30000,
-    )
-
-    state = mock.hass.states.get(
-        "light.test"
-    )
-
-    assert (
-        state.attributes["brightness"]
-        == 255
-    )
-
-
-async def test_advanced_dim_up_feedback_steps(
-    mock_input_number_dimming,
-):
-    await mock_input_number_dimming.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "brightness": 0,
-        },
-        blocking=True,
-    )
-
-    mock_input_number_dimming.clear_knx_tx()
-
-    await mock_input_number_dimming.send_knx_group_value_write(
         DIMM_ADDRESS,
         DPT.dim_up(),
     )
@@ -582,22 +639,22 @@ async def test_advanced_dim_up_feedback_steps(
     previous_time = 0
 
     for checkpoint in test_data:
-        await mock_input_number_dimming.advance_time_ms(
+        await mock.advance_time_ms(
             checkpoint["time"] - previous_time,
         )
 
         assert (
-            len(mock_input_number_dimming.tx_telegrams)
+            len(mock.tx_telegrams)
             == checkpoint["telegrams"]
         ), (
             f"At t={checkpoint['time']} ms "
             f"expected {checkpoint['telegrams']} telegrams "
-            f"but got {len(mock_input_number_dimming.tx_telegrams)}"
+            f"but got {len(mock.tx_telegrams)}"
         )
 
         previous_time = checkpoint["time"]
 
-    mock_input_number_dimming.assert_knx_telegrams(
+    mock.assert_knx_telegrams(
         [
             KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(13)),
@@ -623,10 +680,18 @@ async def test_advanced_dim_up_feedback_steps(
         ]
     )
 
+
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+    ],
+    indirect=True,
+)
 async def test_advanced_dim_down_feedback_steps(
-    mock_input_number_dimming,
+    mock,
 ):
-    await mock_input_number_dimming.hass.services.async_call(
+    await mock.hass.services.async_call(
         "light",
         "turn_on",
         {
@@ -636,9 +701,9 @@ async def test_advanced_dim_down_feedback_steps(
         blocking=True,
     )
 
-    mock_input_number_dimming.clear_knx_tx()
+    mock.clear_knx_tx()
 
-    await mock_input_number_dimming.send_knx_group_value_write(
+    await mock.send_knx_group_value_write(
         DIMM_ADDRESS,
         DPT.dim_down(),
     )
@@ -708,22 +773,22 @@ async def test_advanced_dim_down_feedback_steps(
     previous_time = 0
 
     for checkpoint in test_data:
-        await mock_input_number_dimming.advance_time_ms(
+        await mock.advance_time_ms(
             checkpoint["time"] - previous_time,
         )
 
         assert (
-            len(mock_input_number_dimming.tx_telegrams)
+            len(mock.tx_telegrams)
             == checkpoint["telegrams"]
         ), (
             f"At t={checkpoint['time']} ms "
             f"expected {checkpoint['telegrams']} telegrams "
-            f"but got {len(mock_input_number_dimming.tx_telegrams)}"
+            f"but got {len(mock.tx_telegrams)}"
         )
 
         previous_time = checkpoint["time"]
 
-    mock_input_number_dimming.assert_knx_telegrams(
+    mock.assert_knx_telegrams(
         [
             KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
@@ -749,10 +814,18 @@ async def test_advanced_dim_down_feedback_steps(
         ]
     )
 
+
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+    ],
+    indirect=True,
+)
 async def test_advanced_dim_up_stop(
-    mock_input_number_dimming,
+    mock,
 ):
-    await mock_input_number_dimming.hass.services.async_call(
+    await mock.hass.services.async_call(
         "light",
         "turn_on",
         {
@@ -762,16 +835,16 @@ async def test_advanced_dim_up_stop(
         blocking=True,
     )
 
-    mock_input_number_dimming.clear_knx_tx()
+    mock.clear_knx_tx()
 
-    await mock_input_number_dimming.send_knx_group_value_write(
+    await mock.send_knx_group_value_write(
         DIMM_ADDRESS,
         DPT.dim_up(),
     )
 
-    await mock_input_number_dimming.advance_time_ms(800)
+    await mock.advance_time_ms(800)
 
-    mock_input_number_dimming.assert_knx_telegrams(
+    mock.assert_knx_telegrams(
         [
             KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(13)),
@@ -780,14 +853,14 @@ async def test_advanced_dim_up_stop(
         ]
     )
 
-    await mock_input_number_dimming.send_knx_group_value_write(
+    await mock.send_knx_group_value_write(
         DIMM_ADDRESS,
         DPT.dim_stop(),
     )
 
-    await mock_input_number_dimming.advance_time_ms(1)
+    await mock.advance_time_ms(1)
 
-    mock_input_number_dimming.assert_knx_telegrams(
+    mock.assert_knx_telegrams(
         [
             KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(13)),
@@ -797,10 +870,18 @@ async def test_advanced_dim_up_stop(
         ]
     )
 
+
+@pytest.mark.parametrize(
+    "mock",
+    [
+        "input_number",
+    ],
+    indirect=True,
+)
 async def test_advanced_dim_down_stop(
-    mock_input_number_dimming,
+    mock,
 ):
-    await mock_input_number_dimming.hass.services.async_call(
+    await mock.hass.services.async_call(
         "light",
         "turn_on",
         {
@@ -810,16 +891,16 @@ async def test_advanced_dim_down_stop(
         blocking=True,
     )
 
-    mock_input_number_dimming.clear_knx_tx()
+    mock.clear_knx_tx()
 
-    await mock_input_number_dimming.send_knx_group_value_write(
+    await mock.send_knx_group_value_write(
         DIMM_ADDRESS,
         DPT.dim_down(),
     )
 
-    await mock_input_number_dimming.advance_time_ms(800)
+    await mock.advance_time_ms(800)
 
-    mock_input_number_dimming.assert_knx_telegrams(
+    mock.assert_knx_telegrams(
         [
             KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
@@ -829,14 +910,14 @@ async def test_advanced_dim_down_stop(
         ]
     )
 
-    await mock_input_number_dimming.send_knx_group_value_write(
+    await mock.send_knx_group_value_write(
         DIMM_ADDRESS,
         DPT.dim_stop(),
     )
 
-    await mock_input_number_dimming.advance_time_ms(1)
+    await mock.advance_time_ms(1)
 
-    mock_input_number_dimming.assert_knx_telegrams(
+    mock.assert_knx_telegrams(
         [
             KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
