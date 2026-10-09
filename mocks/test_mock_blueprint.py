@@ -255,3 +255,107 @@ action:
     mock.assert_knx_telegrams([])
 
 
+async def test_long_running_automation(mock):
+    await mock.add_input_boolean("stop_test")
+    
+    blueprint = """
+blueprint:
+  name: Long running automation test
+  domain: automation
+
+  input:
+    entity:
+      selector:
+        entity:
+        
+triggers:
+  - platform: state
+    entity_id: !input entity
+  - platform: knx.telegram
+    destination: "1/1/1"
+
+action:
+  - repeat:
+      count: 2
+      sequence:
+        - wait_for_trigger:
+            - trigger: state
+              entity_id: input_boolean.stop_test
+              to: "on"
+          timeout:
+            seconds: 1
+          continue_on_timeout: true
+
+        - choose:
+            # Stop-trigger
+            - conditions: "{{ wait.completed }}"
+              sequence:
+                - action: knx.send
+                  data:
+                    address: "1/1/3"
+                    payload: 1
+
+          # Timeout
+          default:
+            - action: knx.send
+              data:
+                address: "1/1/2"
+                payload: 1
+"""
+
+    await mock._load_blueprint_file(
+        blueprint,
+        "long_running_blueprint.yaml",
+    )
+
+    await mock.load_blueprint_instance(
+        "long_running_blueprint.yaml",
+        {
+            "entity": "input_boolean.stop_test",
+        },
+    )
+
+    await mock.send_knx_group_value_write(
+        "1/1/1",
+        DPT.binary(1),
+    )
+
+    mock.assert_knx_telegrams([])
+
+    await mock.advance_time_ms(1)
+    mock.assert_knx_telegrams([])
+
+    await mock.advance_time_ms(998)
+    mock.assert_knx_telegrams([])
+    
+    await mock.advance_time_ms(1)
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram("1/1/2", GroupValueWrite, DPT.binary(True)),
+        ]
+    )
+
+    await mock.advance_time_ms(100)
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram("1/1/2", GroupValueWrite, DPT.binary(True)),
+        ]
+    )
+    
+    await mock.hass.services.async_call(
+        "input_boolean",
+        "turn_on",
+        {
+            "entity_id": "input_boolean.stop_test",
+        },
+        blocking=True,
+    )
+
+    await mock.advance_time_ms(1)
+    mock.assert_knx_telegrams(
+        [
+            KnxTelegram("1/1/2", GroupValueWrite, DPT.binary(True)),
+            KnxTelegram("1/1/3", GroupValueWrite, DPT.binary(True)),
+        ]
+    )
+    
