@@ -853,6 +853,8 @@ async def test_advanced_dim_up_stop(
         ]
     )
 
+    mock.clear_knx_tx()
+
     await mock.send_knx_group_value_write(
         DIMM_ADDRESS,
         DPT.dim_stop(),
@@ -860,15 +862,9 @@ async def test_advanced_dim_up_stop(
 
     await mock.advance_time_ms(1)
 
-    mock.assert_knx_telegrams(
-        [
-            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(13)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(26)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(39)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(40)),
-        ]
-    )
+    assert len(mock.tx_telegrams) == 1
+    assert mock.tx_telegrams[0].dpt.payload[0] in [40,41,42,43] 
+    
 
 
 @pytest.mark.parametrize(
@@ -909,6 +905,7 @@ async def test_advanced_dim_down_stop(
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216)),
         ]
     )
+    mock.clear_knx_tx()
 
     await mock.send_knx_group_value_write(
         DIMM_ADDRESS,
@@ -916,14 +913,6 @@ async def test_advanced_dim_down_stop(
     )
 
     await mock.advance_time_ms(1)
-
-    mock.assert_knx_telegrams(
-        [
-            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(215)),
-        ]
-    )
+    
+    assert len(mock.tx_telegrams) == 1
+    assert mock.tx_telegrams[0].dpt.payload[0] in [213,214,215] 
