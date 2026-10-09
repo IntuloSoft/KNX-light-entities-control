@@ -168,6 +168,8 @@ variables:
   const_Dimming: 1
   const_DirectionUp: 2
   const_StateOn: 4
+  has_dimm_entity: "{{ dimm_entity is defined and dimm_entity not in [None, []] }}"
+  is_input_number: "{{ has_dimm_entity and dimm_entity.split('.')[0] == 'input_number' }}"
   
 trigger_variables:
   _switch_address: !input switch_address
@@ -748,14 +750,14 @@ actions:
           id: "light_entity"
       sequence:
 
-# SWITCH change
+        # SWITCH change
         - if:
             - condition: template
               value_template: "{{ trigger.to_state.state != trigger.from_state.state }}"
             - condition: template
               value_template: "{{ switch_state_address != None }}"
             - condition: template
-              value_template: "{{ not (transition_supported and (states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
+              value_template: "{{ not (transition_supported and is_input_number and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
           then:
             - choose:
                 - conditions:
@@ -765,7 +767,7 @@ actions:
                     # classic dimming
                     - if:
                         - condition: template
-                          value_template: "{{ states[dimm_entity].domain == 'input_boolean' }}"
+                          value_template: "{{ not is_input_number }}"
                       then:
                         - action: knx.send
                           data:
@@ -775,7 +777,7 @@ actions:
                       else:
                         - if:
                             - condition: template
-                              value_template: "{{ (states(dimm_entity) | int | bitwise_and(const_StateOn)) == const_StateOn }}" # Last sent state was 'on'
+                              value_template: "{{ is_input_number and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) == const_StateOn) }}" # Last sent state was 'on'
                           then:
                             - action: knx.send
                               data:
@@ -794,7 +796,7 @@ actions:
                     # classic dimming
                     - if:
                         - condition: template
-                          value_template: "{{ states[dimm_entity].domain == 'input_boolean' }}"
+                          value_template: "{{ not is_input_number }}"
                       then:
                         - action: knx.send
                           data:
@@ -804,7 +806,7 @@ actions:
                       else:
                         - if:
                             - condition: template
-                              value_template: "{{ (states(dimm_entity) | int | bitwise_and(const_StateOn)) != const_StateOn }}" # Last sent state was 'off'
+                              value_template: "{{ is_input_number and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) != const_StateOn) }}" # Last sent state was 'off'
                           then:
                             - action: knx.send
                               data:
