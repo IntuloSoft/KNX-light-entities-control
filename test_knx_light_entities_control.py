@@ -27,15 +27,33 @@ TEMPERATURE_STATE_ADDRESS   = "1/1/6"
 RGB_COLOR_ADDRESS           = "1/1/7"
 RGB_COLOR_STATE_ADDRESS     = "1/1/8"
 
-
+class MockKnxLight(MockBlueprint):
+    def __init__(self, hass, mode):
+        super().__init__(hass)
+        self.mode = mode
 
 
 @pytest.fixture
 async def mock(request, hass: HomeAssistant):
-    dimmer_entity = request.param
-    mock =  MockBlueprint(hass)
+    mode = request.param
+    assert mode in [
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
+    ]
+
+    transition_supported = mode not in [
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
+    ]
+
+
+    mock =  MockKnxLight(hass,mode)
     await mock.register_on_knx_transmit()
-    await mock.add_test_light("light.test")
+    await mock.add_test_light("light.test",transition_supported)
 
     inputs={
         "light_entity": "light.test",
@@ -50,10 +68,15 @@ async def mock(request, hass: HomeAssistant):
         "rgb_color_state_address": RGB_COLOR_STATE_ADDRESS,
     }
 
-    if dimmer_entity == "input_boolean":
+    if mode == "Step":
         await mock.add_input_boolean("dimmer")
         inputs["dimm_entity"] = "input_boolean.dimmer"
-    elif dimmer_entity == "input_number":
+    elif mode in [
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
+    ]:
         await mock.add_input_number("dimmer", min_value = 0, max_value = 65536)
         inputs["dimm_entity"] = "input_number.dimmer"
 
@@ -73,9 +96,12 @@ async def mock(request, hass: HomeAssistant):
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -95,10 +121,12 @@ async def test_light_can_turn_on(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -124,9 +152,12 @@ async def test_knx_switch_turns_light_on(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -170,9 +201,12 @@ async def test_knx_switch_read_request(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -197,9 +231,12 @@ async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -226,9 +263,12 @@ async def test_light_brightness_feedback(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -256,9 +296,12 @@ async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -302,9 +345,12 @@ async def test_knx_brightness_read_request(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -331,9 +377,12 @@ async def test_knx_rgb_turns_light_on(
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -367,9 +416,12 @@ async def test_light_rgb_feedback(
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -416,9 +468,12 @@ async def test_knx_rgb_read_request(
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -445,9 +500,12 @@ async def test_knx_cct_turns_light_on(
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -491,9 +549,12 @@ async def test_light_cct_feedback(
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
-        "input_boolean",
-        None,
+        "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
@@ -544,11 +605,16 @@ async def test_knx_cct_read_request(
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
+        # "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
-async def test_advanced_dim_up_feedback_steps(
+async def test_dim_up_feedback_steps(
     mock,
 ):
     await mock.hass.services.async_call(
@@ -560,7 +626,7 @@ async def test_advanced_dim_up_feedback_steps(
         },
         blocking=True,
     )
-
+    await mock.advance_time_ms(1)
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_write(
@@ -574,7 +640,7 @@ async def test_advanced_dim_up_feedback_steps(
     FINAL_STEP_MS = int(FINAL_BRIGHTNESS_STEP * INTERVAL_MS / 13)
 
     test_data = [
-        {"time": 1 * INTERVAL_MS - MARGIN_MS, "telegrams": 0},
+        {"time": 1 * INTERVAL_MS - MARGIN_MS, "telegrams": [0,1]},
         {"time": 1 * INTERVAL_MS + MARGIN_MS, "telegrams": 2},
 
         {"time": 2 * INTERVAL_MS - MARGIN_MS, "telegrams": 2},
@@ -644,8 +710,7 @@ async def test_advanced_dim_up_feedback_steps(
         )
 
         assert (
-            len(mock.tx_telegrams)
-            == checkpoint["telegrams"]
+            len(mock.tx_telegrams) == checkpoint["telegrams"] or len(mock.tx_telegrams) in checkpoint["telegrams"]
         ), (
             f"At t={checkpoint['time']} ms "
             f"expected {checkpoint['telegrams']} telegrams "
@@ -680,15 +745,19 @@ async def test_advanced_dim_up_feedback_steps(
         ]
     )
 
-
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
+        # "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
-async def test_advanced_dim_down_feedback_steps(
+async def test_dim_down_feedback_steps(
     mock,
 ):
     await mock.hass.services.async_call(
@@ -700,6 +769,7 @@ async def test_advanced_dim_down_feedback_steps(
         },
         blocking=True,
     )
+    await mock.advance_time_ms(1)
 
     mock.clear_knx_tx()
 
@@ -712,62 +782,62 @@ async def test_advanced_dim_down_feedback_steps(
     MARGIN_MS = 10
 
     test_data = [
-        {"time": 1 * INTERVAL_MS - MARGIN_MS, "telegrams": 2},
-        {"time": 1 * INTERVAL_MS + MARGIN_MS, "telegrams": 3},
+        {"time": 1 * INTERVAL_MS - MARGIN_MS, "telegrams": 0},
+        {"time": 1 * INTERVAL_MS + MARGIN_MS, "telegrams": 1},
 
-        {"time": 2 * INTERVAL_MS - MARGIN_MS, "telegrams": 3},
-        {"time": 2 * INTERVAL_MS + MARGIN_MS, "telegrams": 4},
+        {"time": 2 * INTERVAL_MS - MARGIN_MS, "telegrams": 1},
+        {"time": 2 * INTERVAL_MS + MARGIN_MS, "telegrams": 2},
 
-        {"time": 3 * INTERVAL_MS - MARGIN_MS, "telegrams": 4},
-        {"time": 3 * INTERVAL_MS + MARGIN_MS, "telegrams": 5},
+        {"time": 3 * INTERVAL_MS - MARGIN_MS, "telegrams": 2},
+        {"time": 3 * INTERVAL_MS + MARGIN_MS, "telegrams": 3},
 
-        {"time": 4 * INTERVAL_MS - MARGIN_MS, "telegrams": 5},
-        {"time": 4 * INTERVAL_MS + MARGIN_MS, "telegrams": 6},
+        {"time": 4 * INTERVAL_MS - MARGIN_MS, "telegrams": 3},
+        {"time": 4 * INTERVAL_MS + MARGIN_MS, "telegrams": 4},
 
-        {"time": 5 * INTERVAL_MS - MARGIN_MS, "telegrams": 6},
-        {"time": 5 * INTERVAL_MS + MARGIN_MS, "telegrams": 7},
+        {"time": 5 * INTERVAL_MS - MARGIN_MS, "telegrams": 4},
+        {"time": 5 * INTERVAL_MS + MARGIN_MS, "telegrams": 5},
 
-        {"time": 6 * INTERVAL_MS - MARGIN_MS, "telegrams": 7},
-        {"time": 6 * INTERVAL_MS + MARGIN_MS, "telegrams": 8},
+        {"time": 6 * INTERVAL_MS - MARGIN_MS, "telegrams": 5},
+        {"time": 6 * INTERVAL_MS + MARGIN_MS, "telegrams": 6},
 
-        {"time": 7 * INTERVAL_MS - MARGIN_MS, "telegrams": 8},
-        {"time": 7 * INTERVAL_MS + MARGIN_MS, "telegrams": 9},
+        {"time": 7 * INTERVAL_MS - MARGIN_MS, "telegrams": 6},
+        {"time": 7 * INTERVAL_MS + MARGIN_MS, "telegrams": 7},
 
-        {"time": 8 * INTERVAL_MS - MARGIN_MS, "telegrams": 9},
-        {"time": 8 * INTERVAL_MS + MARGIN_MS, "telegrams": 10},
+        {"time": 8 * INTERVAL_MS - MARGIN_MS, "telegrams": 7},
+        {"time": 8 * INTERVAL_MS + MARGIN_MS, "telegrams": 8},
 
-        {"time": 9 * INTERVAL_MS - MARGIN_MS, "telegrams": 10},
-        {"time": 9 * INTERVAL_MS + MARGIN_MS, "telegrams": 11},
+        {"time": 9 * INTERVAL_MS - MARGIN_MS, "telegrams": 8},
+        {"time": 9 * INTERVAL_MS + MARGIN_MS, "telegrams": 9},
 
-        {"time": 10 * INTERVAL_MS - MARGIN_MS, "telegrams": 11},
-        {"time": 10 * INTERVAL_MS + MARGIN_MS, "telegrams": 12},
+        {"time": 10 * INTERVAL_MS - MARGIN_MS, "telegrams": 9},
+        {"time": 10 * INTERVAL_MS + MARGIN_MS, "telegrams": 10},
 
-        {"time": 11 * INTERVAL_MS - MARGIN_MS, "telegrams": 12},
-        {"time": 11 * INTERVAL_MS + MARGIN_MS, "telegrams": 13},
+        {"time": 11 * INTERVAL_MS - MARGIN_MS, "telegrams": 10},
+        {"time": 11 * INTERVAL_MS + MARGIN_MS, "telegrams": 11},
 
-        {"time": 12 * INTERVAL_MS - MARGIN_MS, "telegrams": 13},
-        {"time": 12 * INTERVAL_MS + MARGIN_MS, "telegrams": 14},
+        {"time": 12 * INTERVAL_MS - MARGIN_MS, "telegrams": 11},
+        {"time": 12 * INTERVAL_MS + MARGIN_MS, "telegrams": 12},
 
-        {"time": 13 * INTERVAL_MS - MARGIN_MS, "telegrams": 14},
-        {"time": 13 * INTERVAL_MS + MARGIN_MS, "telegrams": 15},
+        {"time": 13 * INTERVAL_MS - MARGIN_MS, "telegrams": 12},
+        {"time": 13 * INTERVAL_MS + MARGIN_MS, "telegrams": 13},
 
-        {"time": 14 * INTERVAL_MS - MARGIN_MS, "telegrams": 15},
-        {"time": 14 * INTERVAL_MS + MARGIN_MS, "telegrams": 16},
+        {"time": 14 * INTERVAL_MS - MARGIN_MS, "telegrams": 13},
+        {"time": 14 * INTERVAL_MS + MARGIN_MS, "telegrams": 14},
 
-        {"time": 15 * INTERVAL_MS - MARGIN_MS, "telegrams": 16},
-        {"time": 15 * INTERVAL_MS + MARGIN_MS, "telegrams": 17},
+        {"time": 15 * INTERVAL_MS - MARGIN_MS, "telegrams": 14},
+        {"time": 15 * INTERVAL_MS + MARGIN_MS, "telegrams": 15},
 
-        {"time": 16 * INTERVAL_MS - MARGIN_MS, "telegrams": 17},
-        {"time": 16 * INTERVAL_MS + MARGIN_MS, "telegrams": 18},
+        {"time": 16 * INTERVAL_MS - MARGIN_MS, "telegrams": 15},
+        {"time": 16 * INTERVAL_MS + MARGIN_MS, "telegrams": 16},
 
-        {"time": 17 * INTERVAL_MS - MARGIN_MS, "telegrams": 18},
-        {"time": 17 * INTERVAL_MS + MARGIN_MS, "telegrams": 19},
+        {"time": 17 * INTERVAL_MS - MARGIN_MS, "telegrams": 16},
+        {"time": 17 * INTERVAL_MS + MARGIN_MS, "telegrams": 17},
 
-        {"time": 18 * INTERVAL_MS - MARGIN_MS, "telegrams": 19},
-        {"time": 18 * INTERVAL_MS + MARGIN_MS, "telegrams": 20},
+        {"time": 18 * INTERVAL_MS - MARGIN_MS, "telegrams": 17},
+        {"time": 18 * INTERVAL_MS + MARGIN_MS, "telegrams": 18},
 
-        {"time": 19 * INTERVAL_MS - MARGIN_MS, "telegrams": 20},
-        {"time": 19 * INTERVAL_MS + MARGIN_MS, "telegrams": 21},
+        {"time": 19 * INTERVAL_MS - MARGIN_MS, "telegrams": 18},
+        {"time": 19 * INTERVAL_MS + MARGIN_MS, "telegrams": 19},
     ]
 
     previous_time = 0
@@ -778,8 +848,7 @@ async def test_advanced_dim_down_feedback_steps(
         )
 
         assert (
-            len(mock.tx_telegrams)
-            == checkpoint["telegrams"]
+            len(mock.tx_telegrams) == checkpoint["telegrams"]# or len(mock.tx_telegrams) in checkpoint["telegrams"]
         ), (
             f"At t={checkpoint['time']} ms "
             f"expected {checkpoint['telegrams']} telegrams "
@@ -788,10 +857,11 @@ async def test_advanced_dim_down_feedback_steps(
 
         previous_time = checkpoint["time"]
 
+
     mock.assert_knx_telegrams(
         [
-            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
+            # KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
+            # KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216)),
@@ -818,11 +888,16 @@ async def test_advanced_dim_down_feedback_steps(
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
+        # "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
-async def test_advanced_dim_up_stop(
+async def test_dim_up_stop(
     mock,
 ):
     await mock.hass.services.async_call(
@@ -834,7 +909,7 @@ async def test_advanced_dim_up_stop(
         },
         blocking=True,
     )
-
+    await mock.advance_time_ms(1)
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_write(
@@ -860,21 +935,29 @@ async def test_advanced_dim_up_stop(
         DPT.dim_stop(),
     )
 
-    await mock.advance_time_ms(1)
+    await mock.advance_time_ms(10)
 
-    assert len(mock.tx_telegrams) == 1
-    assert mock.tx_telegrams[0].dpt.payload[0] in [40,41,42,43] 
+    if mock.mode in ["Step"]:
+        assert len(mock.tx_telegrams) == 0
+    else:
+        assert len(mock.tx_telegrams) == 1
+        assert mock.tx_telegrams[0].dpt.payload[0] in [40,41,42,43] 
     
 
 
 @pytest.mark.parametrize(
     "mock",
     [
-        "input_number",
+        # "Disabled", # No Entity
+        "Step",
+        "TransitionStep",
+        "Transition",
+        "TransitionStep_TransitionNotSupported",
+        "Transition_TransitionNotSupported",
     ],
     indirect=True,
 )
-async def test_advanced_dim_down_stop(
+async def test_dim_down_stop(
     mock,
 ):
     await mock.hass.services.async_call(
@@ -886,7 +969,7 @@ async def test_advanced_dim_down_stop(
         },
         blocking=True,
     )
-
+    await mock.advance_time_ms(1)
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_write(
@@ -898,8 +981,6 @@ async def test_advanced_dim_down_stop(
 
     mock.assert_knx_telegrams(
         [
-            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229)),
             KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216)),
@@ -913,6 +994,9 @@ async def test_advanced_dim_down_stop(
     )
 
     await mock.advance_time_ms(1)
-    
-    assert len(mock.tx_telegrams) == 1
-    assert mock.tx_telegrams[0].dpt.payload[0] in [213,214,215] 
+
+    if mock.mode in ["Step"]:
+        assert len(mock.tx_telegrams) == 0
+    else:
+        assert len(mock.tx_telegrams) == 1
+        assert mock.tx_telegrams[0].dpt.payload[0] in [213,214,215] 

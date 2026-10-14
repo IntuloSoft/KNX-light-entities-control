@@ -46,6 +46,15 @@ class KnxTelegram:
     telegram_type: type
     dpt: KnxValue | None = None
 
+    def __repr__(self):
+        return (
+            f"KnxTelegram("
+            f"ga={self.address}, "
+            f"type={self.telegram_type.__name__}, "
+            f"value={self.dpt.payload}"
+            f")"
+        )
+
 class DPT:
 
     @staticmethod
@@ -334,21 +343,32 @@ class MockBlueprint():
         await self.hass.async_block_till_done()
     
 
+    def _format_telegrams(self, telegrams: list[KnxTelegram]) -> str:
+        lines = []
+
+        for t in telegrams:
+            lines.append(
+                f"{t.address:<10} "
+                f"{t.telegram_type:<10} "
+                f"{t.value}"
+            )
+
+        return "\n".join(lines)
+
     def assert_knx_telegrams(
         self,
         expected: list[KnxTelegram],
     ):
-
         assert (
-            len(self.tx_telegrams)
-            == len(expected)
+            len(self.tx_telegrams) == len(expected)
         ), (
-            f"Telegram count mismatch.\n"
-            f"Expected: {len(expected)}\n"
-            f"Actual:   {len(self.tx_telegrams)}\n"
-            f"Actual telegrams:\n{self.tx_telegrams}"
+            f"Telegram count mismatch.\n\n"
+            f"Expected:\n"
+            f"{self._format_telegrams(expected)}\n\n"
+            f"Actual:\n"
+            f"{self._format_telegrams(self.tx_telegrams)}"
         )
-
+        
         for index, (actual, exp) in enumerate(
             zip(
                 self.tx_telegrams,
@@ -476,6 +496,7 @@ class MockBlueprint():
     async def add_test_light(
         self,
         entity_id: str = "light.test",
+        transition_supported = True
     ):
 
         await async_setup_component(
@@ -484,7 +505,7 @@ class MockBlueprint():
             {},
         )
         
-        self.light = MockLight(entity_id)
+        self.light = MockLight(entity_id,transition_supported)
 
         component = self.hass.data.get(LIGHT_DOMAIN)
         assert component is not None

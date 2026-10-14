@@ -1,11 +1,13 @@
 from homeassistant.components.light import (
     ColorMode,
     LightEntity,
+    LightEntityFeature,
 )
+
 
 class MockLight(LightEntity):
 
-    def __init__(self, entity_id):
+    def __init__(self, entity_id, transition_supported=True):
         self.entity_id = entity_id
 
         self._attr_is_on = False
@@ -14,6 +16,11 @@ class MockLight(LightEntity):
         self._attr_rgb_color = None
         self._attr_color_temp_kelvin = None
 
+        if transition_supported:
+            self._attr_supported_features = LightEntityFeature.TRANSITION
+        else:
+            self._attr_supported_features = 0
+
         self._attr_color_mode = ColorMode.ONOFF
         self._attr_supported_color_modes = {
             ColorMode.ONOFF,
@@ -21,6 +28,7 @@ class MockLight(LightEntity):
             ColorMode.RGB,
             ColorMode.COLOR_TEMP,
         }
+
 
     @property
     def is_on(self):
