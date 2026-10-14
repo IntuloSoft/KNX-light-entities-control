@@ -170,6 +170,7 @@ variables:
   const_StateOn: 4
   has_dimm_entity: "{{ dimm_entity is defined and dimm_entity not in [None, []] }}"
   is_input_number: "{{ has_dimm_entity and dimm_entity.split('.')[0] == 'input_number' }}"
+  is_input_boolean: "{{ has_dimm_entity and dimm_entity.split('.')[0] == 'input_boolean' }}"
   
 trigger_variables:
   _switch_address: !input switch_address
@@ -311,7 +312,7 @@ actions:
               # classic dimming
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ is_input_boolean | bool }}"
                 then:
                   - action: input_boolean.turn_on
                     data: {}
@@ -360,7 +361,7 @@ actions:
               # classic dimming
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ is_input_boolean | bool }}"
                 then:
                   - action: input_boolean.turn_off
                     data: {}
@@ -376,7 +377,7 @@ actions:
                       entity_id: !input dimm_entity
               - if:
                   - condition: template
-                    value_template: "{{ reduce_server_load and transition_supported and (states[dimm_entity].domain == 'input_number') }}"
+                    value_template: "{{ (reduce_server_load | bool) and (transition_supported| bool) and (is_input_number | bool) }}"
                 then:
                   - action: light.turn_on
                     data:
@@ -396,11 +397,11 @@ actions:
                           {% endif %}
                     - if:
                         - condition: template
-                          value_template: "{{ transition_supported }}"
+                          value_template: "{{ (transition_supported| bool) }}"
                       then:
                         - if:
                             - condition: template
-                              value_template: "{{ (not reduce_server_load) or (states[dimm_entity].domain != 'input_number') }}"
+                              value_template: "{{ ( is_input_number | bool ) and (not (reduce_server_load | bool)) }}"
                           then:
                             - action: light.turn_on
                               data:
@@ -410,7 +411,7 @@ actions:
                                 entity_id: "{{ light_entity }}"
                         - if:
                             - condition: template
-                              value_template: "{{ repeat.first and (initial_brightness == 0) and (states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) != const_StateOn) }}" # Last sent state was 'off'
+                              value_template: "{{ repeat.first and (initial_brightness == 0) and ( is_input_number | bool ) and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) != const_StateOn) }}" # Last sent state was 'off'
                           then:
                             - action: knx.send
                               data:
@@ -422,7 +423,7 @@ actions:
                                 value: "{{ states(dimm_entity) | float - (states(dimm_entity) | int) + (states(dimm_entity) | int | bitwise_or(const_StateOn)) }}" # Add StateOn Flag
                               target:
                                 entity_id: !input dimm_entity
-                    - wait_template: "{{ ((states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming)) or ((states[dimm_entity].domain == 'input_boolean') and (states(dimm_entity) == 'on')) }}"
+                    - wait_template: "{{ ( ( is_input_number | bool ) and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming)) or (is_input_boolean | bool and (states(dimm_entity) == 'on')) }}"
                       timeout:
                         milliseconds: "{{ transition_time }}"
                       continue_on_timeout: true
@@ -432,7 +433,7 @@ actions:
                       then:
                         - if:
                             - condition: template
-                              value_template: "{{ (not reduce_server_load) or (states[dimm_entity].domain != 'input_number') }}"
+                              value_template: "{{ ( is_input_number | bool ) and (not (reduce_server_load | bool)) }}"
                           then:
                             - action: input_number.set_value
                               metadata: {}
@@ -442,7 +443,7 @@ actions:
                                 entity_id: !input dimm_entity
                         - if:
                             - condition: template
-                              value_template: "{{ transition_supported }}"
+                              value_template: "{{ ( is_input_number | bool ) and ( transition_supported| bool ) }}"
                           then:
                             - if:
                                 - condition: template
@@ -466,10 +467,10 @@ actions:
                                 entity_id: "{{ light_entity }}"
                   until:
                     - condition: template
-                      value_template: "{{ (((states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming))) or ((states[dimm_entity].domain == 'input_boolean') and (states(dimm_entity) == 'on')) or (repeat.index >= current_dimm_steps) }}"
+                      value_template: "{{ (( ( is_input_number | bool ) and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming))) or ( ( is_input_boolean | bool ) and (states(dimm_entity) == 'on')) or (repeat.index >= current_dimm_steps) }}"
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ is_input_boolean | bool }}"
                 then:
                   - action: input_boolean.turn_off
                     data: {}
@@ -499,7 +500,7 @@ actions:
               # classic dimming 
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ is_input_boolean | bool }}"
                 then:
                   - action: input_boolean.turn_off
                     data: {}
@@ -515,7 +516,7 @@ actions:
                       entity_id: !input dimm_entity
               - if:
                   - condition: template
-                    value_template: "{{ reduce_server_load and transition_supported and (states[dimm_entity].domain == 'input_number') }}"
+                    value_template: "{{ (reduce_server_load | bool) and (transition_supported| bool) and ( is_input_number | bool ) }}"
                 then:
                   - if:
                       - condition: template
@@ -551,11 +552,11 @@ actions:
                           {% endif %}
                     - if:
                         - condition: template
-                          value_template: "{{ transition_supported }}"
+                          value_template: "{{ (transition_supported| bool) }}"
                       then:
                         - if:
                             - condition: template
-                              value_template: "{{ (not reduce_server_load) or (states[dimm_entity].domain != 'input_number') }}"
+                              value_template: "{{ is_input_number | bool and (not (reduce_server_load | bool)) }}"
                           then:
                             - action: light.turn_on
                               data:
@@ -563,7 +564,7 @@ actions:
                                 transition: "{{ transition_time / 1000 }}"
                               target:
                                 entity_id: "{{ light_entity }}"
-                    - wait_template: "{{ ((states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming)) or ((states[dimm_entity].domain == 'input_boolean') and (states(dimm_entity) == 'on')) }}"
+                    - wait_template: "{{ ( ( is_input_number | bool ) and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming)) or (is_input_boolean | bool) and (states(dimm_entity) == 'on') }}"
                       timeout:
                         milliseconds: "{{ transition_time }}"
                       continue_on_timeout: true
@@ -573,7 +574,7 @@ actions:
                       then:
                         - if:
                             - condition: template
-                              value_template: "{{ (not reduce_server_load) or (states[dimm_entity].domain != 'input_number') }}"
+                              value_template: "{{ ( is_input_number | bool ) and (not (reduce_server_load | bool)) }}"
                           then:
                             - action: input_number.set_value
                               metadata: {}
@@ -583,7 +584,7 @@ actions:
                                 entity_id: !input dimm_entity
                         - if:
                             - condition: template
-                              value_template: "{{ transition_supported }}"
+                              value_template: "{{ ( is_input_number | bool ) and ( transition_supported| bool ) }}"
                           then:
                             - if:
                                 - condition: template
@@ -607,11 +608,11 @@ actions:
                                 entity_id: "{{ light_entity }}"
                   until:
                     - condition: template
-                      value_template: "{{ (((states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming))) or ((states[dimm_entity].domain == 'input_boolean') and (states(dimm_entity) == 'on')) or (repeat.index >= current_dimm_steps) }}"
+                      value_template: "{{ (( (is_input_number | bool ) and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming))) or ( (is_input_boolean | bool) and (states(dimm_entity) == 'on')) or (repeat.index >= current_dimm_steps) }}"
               # classic dimming
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ is_input_boolean | bool }}"
                 then:
                   - action: input_boolean.turn_off
                     data: {}
@@ -757,7 +758,7 @@ actions:
             - condition: template
               value_template: "{{ switch_state_address != None }}"
             - condition: template
-              value_template: "{{ not (transition_supported and is_input_number and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
+              value_template: "{{ not ((transition_supported| bool) and ( is_input_number | bool ) and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
           then:
             - choose:
                 - conditions:
@@ -767,7 +768,7 @@ actions:
                     # classic dimming
                     - if:
                         - condition: template
-                          value_template: "{{ not is_input_number }}"
+                          value_template: "{{ not is_input_number | bool }}"
                       then:
                         - action: knx.send
                           data:
@@ -777,7 +778,7 @@ actions:
                       else:
                         - if:
                             - condition: template
-                              value_template: "{{ is_input_number and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) == const_StateOn) }}" # Last sent state was 'on'
+                              value_template: "{{ ( is_input_number | bool ) and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) == const_StateOn) }}" # Last sent state was 'on'
                           then:
                             - action: knx.send
                               data:
@@ -796,7 +797,7 @@ actions:
                     # classic dimming
                     - if:
                         - condition: template
-                          value_template: "{{ not is_input_number }}"
+                          value_template: "{{ not is_input_number | bool }}"
                       then:
                         - action: knx.send
                           data:
@@ -806,7 +807,7 @@ actions:
                       else:
                         - if:
                             - condition: template
-                              value_template: "{{ is_input_number and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) != const_StateOn) }}" # Last sent state was 'off'
+                              value_template: "{{ ( is_input_number | bool ) and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) != const_StateOn) }}" # Last sent state was 'off'
                           then:
                             - action: knx.send
                               data:
@@ -824,7 +825,7 @@ actions:
             - condition: template
               value_template: "{{ value_state_address != None }}"
             - condition: template
-              value_template: "{{ not (transition_supported and (states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
+              value_template: "{{ not ((transition_supported| bool) and ( is_input_number ) | bool and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
             - condition: or
               conditions:
                 - condition: template
