@@ -325,11 +325,11 @@ actions:
                         value_template: "{{ (states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming }}" # Currently Dimming?
                     then:
                       - variables:
-                          curent_DimmSeconds: >-
+                          current_DimmSeconds: >-
                             {{ now().timestamp() - (states[dimm_entity].last_changed | as_datetime | as_local).timestamp() }}
                           dimm_Fraction: >-
-                            {{ curent_DimmSeconds * 1000 / dimm_delay }}
-                          current_Brigthness: >-
+                            {{ current_DimmSeconds * 1000 / dimm_delay }}
+                          current_Brightness: >-
                             {% if (states(dimm_entity) | int | bitwise_and(const_DirectionUp)) == const_DirectionUp %}
                               {{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) + dimm_Fraction * dimm_step) | round(0,'trunc') | int(0)), 255) | min), 0) | max }}
                             {% else %}
@@ -343,7 +343,7 @@ actions:
                           entity_id: !input dimm_entity
                       - action: light.turn_on
                         data:
-                          brightness: "{{ current_Brigthness }}"
+                          brightness: "{{ current_Brightness }}"
                           transition: 0
                         target:
                           entity_id: "{{ light_entity }}"
@@ -450,15 +450,14 @@ actions:
                                   value_template: "{{ value_state_address != None }}"
                               then:
                                 - variables:
-                                    curent_DimmSeconds: >-
+                                    current_DimmSeconds: >-
                                       {{ now().timestamp() - (states[dimm_entity].last_changed | as_datetime | as_local).timestamp() }}
                                     dimm_Fraction: >-
-                                      {{ curent_DimmSeconds * 1000 / dimm_delay }}
+                                      {{ current_DimmSeconds * 1000 / dimm_delay }}
                                 - action: knx.send
                                   data:
                                     address: "{{ value_state_address }}"
-                                    payload:
-                                      - "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) + dimm_Fraction * dimm_step) | round(0,'trunc') | int(0)), 255) | min), 0) | max }}"
+                                    payload: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) + dimm_Fraction * dimm_step) | round(0,'trunc') | int(0)), 255) | min), 0) | max }}"
                           else:
                             - action: light.turn_on
                               data:
@@ -591,15 +590,14 @@ actions:
                                   value_template: "{{ value_state_address != None }}"
                               then:
                                 - variables:
-                                    curent_DimmSeconds: >-
+                                    current_DimmSeconds: >-
                                       {{ now().timestamp() - (states[dimm_entity].last_changed | as_datetime | as_local).timestamp() }}
                                     dimm_Fraction: >-
-                                      {{ curent_DimmSeconds * 1000 / dimm_delay }}
+                                      {{ current_DimmSeconds * 1000 / dimm_delay }}
                                 - action: knx.send
                                   data:
                                     address: "{{ value_state_address }}"
-                                    payload:
-                                      - "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) - dimm_Fraction * dimm_step) | round(0,'trunc') | int(0)), 0) | max), 255) | min }}"
+                                    payload: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) - dimm_Fraction * dimm_step) | round(0,'trunc') | int(0)), 0) | max), 255) | min }}"
                           else:
                             - action: light.turn_on
                               data:
@@ -658,8 +656,7 @@ actions:
         - action: knx.send
           data:
             address: "{{ value_state_address }}"
-            payload:
-              - "{{ state_attr(light_entity, 'brightness') | int(default=0) }}"
+            payload: "{{ state_attr(light_entity, 'brightness') | int(default=0) }}"
             response: true
             
     # TEMPERATURE command
@@ -842,14 +839,12 @@ actions:
                 - action: knx.send
                   data:
                     address: "{{ value_state_address }}"
-                    payload:
-                      - "{{ trigger.to_state.attributes.brightness | int(default=0) }}"
+                    payload: "{{ trigger.to_state.attributes.brightness | int(default=0) }}"
               else:
                 - action: knx.send
                   data:
                     address: "{{ value_state_address }}"
-                    payload:
-                      - "0"
+                    payload: "0"
                       
         # TEMPERATURE change
         - if:
@@ -866,7 +861,7 @@ actions:
           then:
             - if:
                 - condition: template
-                  value_template: "{{ trigger.to_state.attributes.brightness is defined }}"
+                  value_template: "{{ trigger.to_state.attributes.color_temp_kelvin is defined }}"
               then:
                 - action: knx.send
                   data:
@@ -878,7 +873,7 @@ actions:
                   data:
                     address: "{{ temperature_state_address }}"
                     type: color_temperature
-                    payload: "0"
+                    payload: 0
 
         # RGB change
         - if:
