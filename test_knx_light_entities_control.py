@@ -709,8 +709,12 @@ async def test_dim_up_feedback_steps(
             checkpoint["time"] - previous_time,
         )
 
+        checkpoint_telegrams = checkpoint["telegrams"]
+        if not isinstance(checkpoint["telegrams"],list):
+            checkpoint_telegrams = [checkpoint["telegrams"]]
+
         assert (
-            len(mock.tx_telegrams) == checkpoint["telegrams"] or len(mock.tx_telegrams) in checkpoint["telegrams"]
+            len(mock.tx_telegrams) in checkpoint_telegrams
         ), (
             f"At t={checkpoint['time']} ms "
             f"expected {checkpoint['telegrams']} telegrams "
@@ -941,7 +945,7 @@ async def test_dim_up_stop(
         assert len(mock.tx_telegrams) == 0
     else:
         assert len(mock.tx_telegrams) == 1
-        assert mock.tx_telegrams[0].dpt.payload[0] in [40,41,42,43] 
+        assert mock.tx_telegrams[0].dpt.payload in [40,41,42,43] 
     
 
 
@@ -999,4 +1003,4 @@ async def test_dim_down_stop(
         assert len(mock.tx_telegrams) == 0
     else:
         assert len(mock.tx_telegrams) == 1
-        assert mock.tx_telegrams[0].dpt.payload[0] in [213,214,215] 
+        assert mock.tx_telegrams[0].dpt.payload in [213,214,215] 

@@ -347,11 +347,14 @@ class MockBlueprint():
         lines = []
 
         for t in telegrams:
-            lines.append(
-                f"{t.address:<10} "
-                f"{t.telegram_type:<10} "
-                f"{t.value}"
-            )
+            try:
+                lines.append(
+                    f"{t.address:<10} "
+                    f"{t.telegram_type:<10} "
+                    f"{t.value}"
+                )
+            except TypeError as e:
+                assert False, f"{type(t.telegram_type)} {repr(t.telegram_type)}"
 
         return "\n".join(lines)
 
@@ -406,6 +409,11 @@ class MockBlueprint():
                     f"but actual telegram has no DPT.\n"
                     f"Expected DPT: {exp.dpt}"
                 )
+
+
+                if isinstance(exp.dpt.payload, list) and len(exp.dpt.payload) == 1:
+                    exp.dpt.payload = exp.dpt.payload[0]
+
 
                 assert (
                     actual.dpt.payload

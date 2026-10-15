@@ -159,7 +159,7 @@ variables:
   _dimm_steps: !input dimm_steps
   dimm_no_off: !input dimm_no_off
   dimm_no_on: !input dimm_no_on
-  dimm_time: "{{ _dimm_time | float(default=4) }}"
+  dimm_time: "{{ _dimm_time | float(default=5) }}"
   dimm_steps: "{{ _dimm_steps | int(default=20) }}"
   dimm_step: "{{ (255 / dimm_steps) | round(0,'ceil') }}"
   dimm_delay: "{{ dimm_time * 1000 / 255 * dimm_step }}"
