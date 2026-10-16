@@ -32,12 +32,41 @@ class MockKnxLight(MockBlueprint):
         super().__init__(hass)
         self.mode = mode
 
+    async def light_turn_on(
+            mock,
+            entity = "light.test",
+            brightness = None,
+            rgb_color = None,
+            color_temp_kelvin = None,
+        ):
+        cfg = {
+            "entity_id": entity,
+        },
+        if brightness is not None:
+            cfg["brightness"] = brightness
+        
+        if rgb_color is not None:
+            cfg["rgb_color"] = rgb_color
+
+        if color_temp_kelvin is not None:
+            cfg["color_temp_kelvin"] = color_temp_kelvin
+            
+        await mock.hass.services.async_call(
+            "light",
+            "turn_on",
+            cfg,
+            blocking=True,
+        )
+
+        await mock.advance_time_ms(1)
+
 
 @pytest.fixture
 async def mock(request, hass: HomeAssistant):
     mode = request.param
     assert mode in [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -81,8 +110,9 @@ async def mock(request, hass: HomeAssistant):
     elif mode == "Transition_TransitionNotSupported":
         inputs["mode"] = 'Transition'
 
-    
-    await mock.add_input_number("dimmer", min_value = 0, max_value = 65536)
+
+    if mode != 'Disabled_NoEntity':
+        await mock.add_input_number("dimmer", min_value = 0, max_value = 65536)
     inputs["dimm_entity"] = "input_number.dimmer"
 
     blueprint_path = Path(__file__).parent / "blueprints" / "knx-light-entities-control-new.yaml"
@@ -112,21 +142,15 @@ async def mock(request, hass: HomeAssistant):
 )
 async def test_light_can_turn_on(mock: MockBlueprint):
 
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-        },
-        blocking=True,
-    )
+    await mock.light_turn_on()
 
     mock.assert_state("light.test", "on")
 
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -157,7 +181,8 @@ async def test_knx_switch_turns_light_on(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -168,16 +193,7 @@ async def test_knx_switch_turns_light_on(mock: MockBlueprint):
 )
 async def test_knx_switch_read_request(mock: MockBlueprint):
 
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-        },
-        blocking=True,
-    )
-    await mock.wait_for_idle()
-
+    await mock.light_turn_on()
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_read(
@@ -206,7 +222,8 @@ async def test_knx_switch_read_request(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -236,7 +253,8 @@ async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -247,16 +265,7 @@ async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
 )
 async def test_light_brightness_feedback(mock: MockBlueprint):
 
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "brightness": 128,
-        },
-        blocking=True,
-    )
-    await mock.wait_for_idle()
+    await mock.light_turn_on(brightness=128)
 
     mock.assert_knx_telegrams(
         [
@@ -268,7 +277,8 @@ async def test_light_brightness_feedback(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -279,14 +289,7 @@ async def test_light_brightness_feedback(mock: MockBlueprint):
 )
 async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
 
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-        },
-        blocking=True,
-    )
+    await mock.light_turn_on()
 
     await mock.send_knx_group_value_write(
         VALUE_ADDRESS,
@@ -301,7 +304,8 @@ async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -312,17 +316,7 @@ async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
 )
 async def test_knx_brightness_read_request(mock: MockBlueprint):
 
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "brightness": 180,
-        },
-        blocking=True,
-    )
-    await mock.wait_for_idle()
-
+    await mock.light_turn_on(brightness=180)
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_read(
@@ -350,7 +344,8 @@ async def test_knx_brightness_read_request(mock: MockBlueprint):
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -382,7 +377,8 @@ async def test_knx_rgb_turns_light_on(
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -394,19 +390,8 @@ async def test_knx_rgb_turns_light_on(
 async def test_light_rgb_feedback(
     mock: MockBlueprint,
 ):
-
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "rgb_color": (255, 0, 0),
-        },
-        blocking=True,
-    )
-
-    await mock.wait_for_idle()
-
+    await mock.light_turn_on(rgb_color=(255, 0, 0))
+    
     mock.assert_knx_telegrams(
         [
             KnxTelegram(SWITCH_STATE_ADDRESS, GroupValueWrite, DPT.binary(True)),
@@ -421,7 +406,8 @@ async def test_light_rgb_feedback(
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -433,20 +419,8 @@ async def test_light_rgb_feedback(
 async def test_knx_rgb_read_request(
     mock: MockBlueprint,
 ):
-
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "rgb_color": (255, 0, 0),
-        },
-        blocking=True,
-    )
-
-    await mock.wait_for_idle()
-
-    mock.tx_telegrams.clear()
+    await mock.light_turn_on(rgb_color=(255,0,0))
+    mock.clear_knx_tx()
 
     await mock.send_knx_group_value_read(RGB_COLOR_STATE_ADDRESS)
 
@@ -473,7 +447,8 @@ async def test_knx_rgb_read_request(
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -505,7 +480,8 @@ async def test_knx_cct_turns_light_on(
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",        
         "Step",
         "TransitionStep",
         "Transition",
@@ -517,19 +493,7 @@ async def test_knx_cct_turns_light_on(
 async def test_light_cct_feedback(
     mock: MockBlueprint,
 ):
-
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "color_temp_kelvin": 3000,
-        },
-        blocking=True,
-    )
-
-    await mock.wait_for_idle()
-
+    await mock.light_turn_on(color_temp_kelvin=3000)
 
     mock.assert_knx_telegrams(
         [
@@ -554,7 +518,8 @@ async def test_light_cct_feedback(
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",        
         "Step",
         "TransitionStep",
         "Transition",
@@ -566,20 +531,8 @@ async def test_light_cct_feedback(
 async def test_knx_cct_read_request(
     mock: MockBlueprint,
 ):
-
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "color_temp_kelvin": 3000,
-        },
-        blocking=True,
-    )
-
-    await mock.wait_for_idle()
-
-    mock.tx_telegrams.clear()
+    await mock.light_turn_on(color_temp_kelvin=3000)
+    mock.clear_knx_tx()
 
     await mock.send_knx_group_value_read(
         TEMPERATURE_STATE_ADDRESS,
@@ -607,10 +560,58 @@ async def test_knx_cct_read_request(
 
     mock.assert_knx_telegrams([])
 
+async def verify_timed_telegrams(
+    mock,
+    test_data,
+):
+    previous_time = 0
+
+    for item in test_data:
+        expected_time = item["time"]
+        early_offset, late_offset = item["window"]
+
+        earliest_time = expected_time + early_offset
+        latest_time = expected_time + late_offset
+
+        expected_telegram = item["telegram"]
+
+        #
+        # Verify telegram not received too early
+        #
+
+        await mock.advance_time_ms(
+            earliest_time - previous_time
+        )
+
+        assert expected_telegram not in mock.tx_telegrams, (
+            f"Telegram arrived too early:\n"
+            f"{expected_telegram}"
+        )
+
+        previous_time = earliest_time
+
+        #
+        # Verify telegram received before end of window
+        #
+
+        await mock.advance_time_ms(
+            latest_time - previous_time
+        )
+
+        assert expected_telegram in mock.tx_telegrams, (
+            f"Telegram not received within timing window:\n"
+            f"{expected_telegram}\n"
+            f"Expected around {expected_time} ms "
+            f"(window {earliest_time}..{latest_time} ms)"
+        )
+
+        previous_time = latest_time
+
 @pytest.mark.parametrize(
     "mock",
     [
-        # "Disabled", # No Entity
+        # "Disabled_NoEntity",
+        # "Disabled",        
         "Step",
         "TransitionStep",
         "Transition",
@@ -622,16 +623,7 @@ async def test_knx_cct_read_request(
 async def test_dim_up_feedback_steps(
     mock,
 ):
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "brightness": 0,
-        },
-        blocking=True,
-    )
-    await mock.advance_time_ms(1)
+    await mock.light_turn_on(brightness=0)
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_write(
@@ -645,120 +637,38 @@ async def test_dim_up_feedback_steps(
     FINAL_STEP_MS = int(FINAL_BRIGHTNESS_STEP * INTERVAL_MS / 13)
 
     test_data = [
-        {"time": 1 * INTERVAL_MS - MARGIN_MS, "telegrams": [0,1]},
-        {"time": 1 * INTERVAL_MS + MARGIN_MS, "telegrams": 2},
-
-        {"time": 2 * INTERVAL_MS - MARGIN_MS, "telegrams": 2},
-        {"time": 2 * INTERVAL_MS + MARGIN_MS, "telegrams": 3},
-
-        {"time": 3 * INTERVAL_MS - MARGIN_MS, "telegrams": 3},
-        {"time": 3 * INTERVAL_MS + MARGIN_MS, "telegrams": 4},
-
-        {"time": 4 * INTERVAL_MS - MARGIN_MS, "telegrams": 4},
-        {"time": 4 * INTERVAL_MS + MARGIN_MS, "telegrams": 5},
-
-        {"time": 5 * INTERVAL_MS - MARGIN_MS, "telegrams": 5},
-        {"time": 5 * INTERVAL_MS + MARGIN_MS, "telegrams": 6},
-
-        {"time": 6 * INTERVAL_MS - MARGIN_MS, "telegrams": 6},
-        {"time": 6 * INTERVAL_MS + MARGIN_MS, "telegrams": 7},
-
-        {"time": 7 * INTERVAL_MS - MARGIN_MS, "telegrams": 7},
-        {"time": 7 * INTERVAL_MS + MARGIN_MS, "telegrams": 8},
-
-        {"time": 8 * INTERVAL_MS - MARGIN_MS, "telegrams": 8},
-        {"time": 8 * INTERVAL_MS + MARGIN_MS, "telegrams": 9},
-
-        {"time": 9 * INTERVAL_MS - MARGIN_MS, "telegrams": 9},
-        {"time": 9 * INTERVAL_MS + MARGIN_MS, "telegrams": 10},
-
-        {"time": 10 * INTERVAL_MS - MARGIN_MS, "telegrams": 10},
-        {"time": 10 * INTERVAL_MS + MARGIN_MS, "telegrams": 11},
-
-        {"time": 11 * INTERVAL_MS - MARGIN_MS, "telegrams": 11},
-        {"time": 11 * INTERVAL_MS + MARGIN_MS, "telegrams": 12},
-
-        {"time": 12 * INTERVAL_MS - MARGIN_MS, "telegrams": 12},
-        {"time": 12 * INTERVAL_MS + MARGIN_MS, "telegrams": 13},
-
-        {"time": 13 * INTERVAL_MS - MARGIN_MS, "telegrams": 13},
-        {"time": 13 * INTERVAL_MS + MARGIN_MS, "telegrams": 14},
-
-        {"time": 14 * INTERVAL_MS - MARGIN_MS, "telegrams": 14},
-        {"time": 14 * INTERVAL_MS + MARGIN_MS, "telegrams": 15},
-
-        {"time": 15 * INTERVAL_MS - MARGIN_MS, "telegrams": 15},
-        {"time": 15 * INTERVAL_MS + MARGIN_MS, "telegrams": 16},
-
-        {"time": 16 * INTERVAL_MS - MARGIN_MS, "telegrams": 16},
-        {"time": 16 * INTERVAL_MS + MARGIN_MS, "telegrams": 17},
-
-        {"time": 17 * INTERVAL_MS - MARGIN_MS, "telegrams": 17},
-        {"time": 17 * INTERVAL_MS + MARGIN_MS, "telegrams": 18},
-
-        {"time": 18 * INTERVAL_MS - MARGIN_MS, "telegrams": 18},
-        {"time": 18 * INTERVAL_MS + MARGIN_MS, "telegrams": 19},
-
-        {"time": 19 * INTERVAL_MS - MARGIN_MS, "telegrams": 19},
-        {"time": 19 * INTERVAL_MS + MARGIN_MS, "telegrams": 20},
-
-        {"time": 19 * INTERVAL_MS + FINAL_STEP_MS - MARGIN_MS, "telegrams": 20},
-        {"time": 19 * INTERVAL_MS + FINAL_STEP_MS + MARGIN_MS, "telegrams": 21},
+        {"time":  1 * INTERVAL_MS,                 "window": (-INTERVAL_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True))},
+        {"time":  1 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(13))},
+        {"time":  2 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(26))},
+        {"time":  3 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(39))},
+        {"time":  4 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(52))},
+        {"time":  5 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(65))},
+        {"time":  6 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(78))},
+        {"time":  7 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(91))},
+        {"time":  8 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(104))},
+        {"time":  9 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(117))},
+        {"time": 10 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(130))},
+        {"time": 11 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(143))},
+        {"time": 12 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(156))},
+        {"time": 13 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(169))},
+        {"time": 14 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(182))},
+        {"time": 15 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(195))},
+        {"time": 16 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(208))},
+        {"time": 17 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(221))},
+        {"time": 18 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(234))},
+        {"time": 19 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(247))},
+        {"time": 19 * INTERVAL_MS + FINAL_STEP_MS, "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255))},
     ]
 
-
-    previous_time = 0
-
-    for checkpoint in test_data:
-        await mock.advance_time_ms(
-            checkpoint["time"] - previous_time,
-        )
-
-        checkpoint_telegrams = checkpoint["telegrams"]
-        if not isinstance(checkpoint["telegrams"],list):
-            checkpoint_telegrams = [checkpoint["telegrams"]]
-
-        assert (
-            len(mock.tx_telegrams) in checkpoint_telegrams
-        ), (
-            f"At t={checkpoint['time']} ms "
-            f"expected {checkpoint['telegrams']} telegrams "
-            f"but got {len(mock.tx_telegrams)}"
-        )
-
-        previous_time = checkpoint["time"]
-
-    mock.assert_knx_telegrams(
-        [
-            KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(13)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(26)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(39)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(52)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(65)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(78)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(91)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(104)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(117)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(130)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(143)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(156)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(169)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(182)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(195)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(208)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(221)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(234)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(247)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
-        ]
-    )
+    await verify_timed_telegrams(mock,test_data)
+    
 
 
 @pytest.mark.parametrize(
     "mock",
     [
-        # "Disabled", # No Entity
+        # "Disabled_NoEntity",
+        # "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -770,17 +680,7 @@ async def test_dim_up_feedback_steps(
 async def test_dim_down_feedback_steps(
     mock,
 ):
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "brightness": 255,
-        },
-        blocking=True,
-    )
-    await mock.advance_time_ms(1)
-
+    await mock.light_turn_on(brightness=255)
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_write(
@@ -792,117 +692,35 @@ async def test_dim_down_feedback_steps(
     MARGIN_MS = 10
 
     test_data = [
-        {"time": 1 * INTERVAL_MS - MARGIN_MS, "telegrams": 0},
-        {"time": 1 * INTERVAL_MS + MARGIN_MS, "telegrams": 1},
-
-        {"time": 2 * INTERVAL_MS - MARGIN_MS, "telegrams": 1},
-        {"time": 2 * INTERVAL_MS + MARGIN_MS, "telegrams": 2},
-
-        {"time": 3 * INTERVAL_MS - MARGIN_MS, "telegrams": 2},
-        {"time": 3 * INTERVAL_MS + MARGIN_MS, "telegrams": 3},
-
-        {"time": 4 * INTERVAL_MS - MARGIN_MS, "telegrams": 3},
-        {"time": 4 * INTERVAL_MS + MARGIN_MS, "telegrams": 4},
-
-        {"time": 5 * INTERVAL_MS - MARGIN_MS, "telegrams": 4},
-        {"time": 5 * INTERVAL_MS + MARGIN_MS, "telegrams": 5},
-
-        {"time": 6 * INTERVAL_MS - MARGIN_MS, "telegrams": 5},
-        {"time": 6 * INTERVAL_MS + MARGIN_MS, "telegrams": 6},
-
-        {"time": 7 * INTERVAL_MS - MARGIN_MS, "telegrams": 6},
-        {"time": 7 * INTERVAL_MS + MARGIN_MS, "telegrams": 7},
-
-        {"time": 8 * INTERVAL_MS - MARGIN_MS, "telegrams": 7},
-        {"time": 8 * INTERVAL_MS + MARGIN_MS, "telegrams": 8},
-
-        {"time": 9 * INTERVAL_MS - MARGIN_MS, "telegrams": 8},
-        {"time": 9 * INTERVAL_MS + MARGIN_MS, "telegrams": 9},
-
-        {"time": 10 * INTERVAL_MS - MARGIN_MS, "telegrams": 9},
-        {"time": 10 * INTERVAL_MS + MARGIN_MS, "telegrams": 10},
-
-        {"time": 11 * INTERVAL_MS - MARGIN_MS, "telegrams": 10},
-        {"time": 11 * INTERVAL_MS + MARGIN_MS, "telegrams": 11},
-
-        {"time": 12 * INTERVAL_MS - MARGIN_MS, "telegrams": 11},
-        {"time": 12 * INTERVAL_MS + MARGIN_MS, "telegrams": 12},
-
-        {"time": 13 * INTERVAL_MS - MARGIN_MS, "telegrams": 12},
-        {"time": 13 * INTERVAL_MS + MARGIN_MS, "telegrams": 13},
-
-        {"time": 14 * INTERVAL_MS - MARGIN_MS, "telegrams": 13},
-        {"time": 14 * INTERVAL_MS + MARGIN_MS, "telegrams": 14},
-
-        {"time": 15 * INTERVAL_MS - MARGIN_MS, "telegrams": 14},
-        {"time": 15 * INTERVAL_MS + MARGIN_MS, "telegrams": 15},
-
-        {"time": 16 * INTERVAL_MS - MARGIN_MS, "telegrams": 15},
-        {"time": 16 * INTERVAL_MS + MARGIN_MS, "telegrams": 16},
-
-        {"time": 17 * INTERVAL_MS - MARGIN_MS, "telegrams": 16},
-        {"time": 17 * INTERVAL_MS + MARGIN_MS, "telegrams": 17},
-
-        {"time": 18 * INTERVAL_MS - MARGIN_MS, "telegrams": 17},
-        {"time": 18 * INTERVAL_MS + MARGIN_MS, "telegrams": 18},
-
-        {"time": 19 * INTERVAL_MS - MARGIN_MS, "telegrams": 18},
-        {"time": 19 * INTERVAL_MS + MARGIN_MS, "telegrams": 19},
+        {"time":  1 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242))},
+        {"time":  2 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229))},
+        {"time":  3 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216))},
+        {"time":  4 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(203))},
+        {"time":  5 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(190))},
+        {"time":  6 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(177))},
+        {"time":  7 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(164))},
+        {"time":  8 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(151))},
+        {"time":  9 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(138))},
+        {"time": 10 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(125))},
+        {"time": 11 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(112))},
+        {"time": 12 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 99))},
+        {"time": 13 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 86))},
+        {"time": 14 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 73))},
+        {"time": 15 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 60))},
+        {"time": 16 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 47))},
+        {"time": 17 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 34))},
+        {"time": 18 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 21))},
+        {"time": 19 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  8))},
     ]
-
-    previous_time = 0
-
-    for checkpoint in test_data:
-        await mock.advance_time_ms(
-            checkpoint["time"] - previous_time,
-        )
-
-        checkpoint_telegrams = checkpoint["telegrams"]
-        if not isinstance(checkpoint["telegrams"],list):
-            checkpoint_telegrams = [checkpoint["telegrams"]]
-
-        assert (
-            len(mock.tx_telegrams) in checkpoint_telegrams
-        ), (
-            f"At t={checkpoint['time']} ms "
-            f"expected {checkpoint['telegrams']} telegrams "
-            f"but got {len(mock.tx_telegrams)}"
-        )
-
-        previous_time = checkpoint["time"]
-
-
-    mock.assert_knx_telegrams(
-        [
-            # KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True)),
-            # KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(203)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(190)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(177)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(164)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(151)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(138)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(125)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(112)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(99)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(86)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(73)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(60)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(47)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(34)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(21)),
-            KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(8)),
-        ]
-    )
+    
+    await verify_timed_telegrams(mock,test_data)
 
 
 @pytest.mark.parametrize(
     "mock",
     [
-        # "Disabled", # No Entity
+        # "Disabled_NoEntity",
+        # "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -914,16 +732,7 @@ async def test_dim_down_feedback_steps(
 async def test_dim_up_stop(
     mock,
 ):
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "brightness": 0,
-        },
-        blocking=True,
-    )
-    await mock.advance_time_ms(1)
+    await mock.light_turn_on(brightness=0)
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_write(
@@ -962,7 +771,8 @@ async def test_dim_up_stop(
 @pytest.mark.parametrize(
     "mock",
     [
-        # "Disabled", # No Entity
+        # "Disabled_NoEntity",
+        # "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -974,16 +784,7 @@ async def test_dim_up_stop(
 async def test_dim_down_stop(
     mock,
 ):
-    await mock.hass.services.async_call(
-        "light",
-        "turn_on",
-        {
-            "entity_id": "light.test",
-            "brightness": 255,
-        },
-        blocking=True,
-    )
-    await mock.advance_time_ms(1)
+    await mock.light_turn_on(brightness=255)
     mock.clear_knx_tx()
 
     await mock.send_knx_group_value_write(
