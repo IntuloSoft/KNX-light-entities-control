@@ -189,6 +189,7 @@ variables:
     {% else %}
       {{ mode }}
     {% endif %}
+  is_disabled_mode: "{{ effective_mode == 'Disabled' }}"
   is_step_mode: "{{ effective_mode == 'Step' }}"
   is_transition_mode: "{{ effective_mode == 'Transition' }}"
   is_transition_step_mode: "{{ effective_mode == 'TransitionStep' }}"
@@ -726,61 +727,95 @@ actions:
         - condition: trigger
           id: "light_entity"
       sequence:
-
         - variables:
             transition_dimming_active: >
-              {{ (is_transition_mode or is_transition_step_mode) and ((states(dimm_entity) | int | bitwise_and(FLAG_DIMMING)) == FLAG_DIMMING) }}
+              {{ not is_disabled_mode and (is_transition_mode or is_transition_step_mode) and ((states(dimm_entity) | int | bitwise_and(FLAG_DIMMING)) == FLAG_DIMMING) }}
 
-        # SWITCH change
         - if:
             - condition: template
-              value_template: "{{ trigger.to_state.state != trigger.from_state.state }}"
-            - condition: template
-              value_template: "{{ switch_state_address != None }}"
-            - condition: template
-              value_template: "{{ not transition_dimming_active }}"
+              value_template: "{{ is_disabled_mode }}"
           then:
-            - choose:
+            # SWITCH change
+            - if:
+                - condition: template
+                  value_template: "{{ trigger.to_state.state != trigger.from_state.state }}"
+                - condition: template
+                  value_template: "{{ switch_state_address != None }}"
+              then:
+                - choose:
 
-              # Light turned OFF
-              - conditions:
-                  - condition: template
-                    value_template: "{{ trigger.to_state.state == 'off' }}"
-                  - condition: template
-                    value_template: >
-                      {{ (states(dimm_entity) | int | bitwise_and(FLAG_STATE_ON)) == FLAG_STATE_ON }}
-                sequence:
-                  - action: knx.send
-                    data:
-                      address: "{{ switch_state_address }}"
-                      payload: 0
+                  # Light turned OFF
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ trigger.to_state.state == 'off' }}"
+                    sequence:
+                      - action: knx.send
+                        data:
+                          address: "{{ switch_state_address }}"
+                          payload: 0
 
-                  - action: input_number.set_value
-                    target:
-                      entity_id: !input dimm_entity
-                    data:
-                      value: >
-                        {{ states(dimm_entity) | float - (states(dimm_entity) | int | bitwise_and(FLAG_STATE_ON)) }}
+                  # Light turned ON
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ trigger.to_state.state == 'on' }}"
+                    sequence:
+                      - action: knx.send
+                        data:
+                          address: "{{ switch_state_address }}"
+                          payload: 1
 
-              # Light turned ON
-              - conditions:
-                  - condition: template
-                    value_template: "{{ trigger.to_state.state == 'on' }}"
-                  - condition: template
-                    value_template: >
-                      {{ (states(dimm_entity) | int | bitwise_and(FLAG_STATE_ON)) != FLAG_STATE_ON }}
-                sequence:
-                  - action: knx.send
-                    data:
-                      address: "{{ switch_state_address }}"
-                      payload: 1
+          else:
 
-                  - action: input_number.set_value
-                    target:
-                      entity_id: !input dimm_entity
-                    data:
-                      value: >
-                        {{ states(dimm_entity) | float - (states(dimm_entity) | int) + (states(dimm_entity) | int | bitwise_or(FLAG_STATE_ON)) }}
+            # SWITCH change
+            - if:
+                - condition: template
+                  value_template: "{{ trigger.to_state.state != trigger.from_state.state }}"
+                - condition: template
+                  value_template: "{{ switch_state_address != None }}"
+                - condition: template
+                  value_template: "{{ not transition_dimming_active }}"
+              then:
+                - choose:
+
+                  # Light turned OFF
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ trigger.to_state.state == 'off' }}"
+                      - condition: template
+                        value_template: >
+                          {{ (states(dimm_entity) | int | bitwise_and(FLAG_STATE_ON)) == FLAG_STATE_ON }}
+                    sequence:
+                      - action: knx.send
+                        data:
+                          address: "{{ switch_state_address }}"
+                          payload: 0
+
+                      - action: input_number.set_value
+                        target:
+                          entity_id: !input dimm_entity
+                        data:
+                          value: >
+                            {{ states(dimm_entity) | float - (states(dimm_entity) | int | bitwise_and(FLAG_STATE_ON)) }}
+
+                  # Light turned ON
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ trigger.to_state.state == 'on' }}"
+                      - condition: template
+                        value_template: >
+                          {{ (states(dimm_entity) | int | bitwise_and(FLAG_STATE_ON)) != FLAG_STATE_ON }}
+                    sequence:
+                      - action: knx.send
+                        data:
+                          address: "{{ switch_state_address }}"
+                          payload: 1
+
+                      - action: input_number.set_value
+                        target:
+                          entity_id: !input dimm_entity
+                        data:
+                          value: >
+                            {{ states(dimm_entity) | float - (states(dimm_entity) | int) + (states(dimm_entity) | int | bitwise_or(FLAG_STATE_ON)) }}
 
         # BRIGHTNESS change
         - if:
