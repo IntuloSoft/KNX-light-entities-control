@@ -55,6 +55,34 @@ class KnxTelegram:
             f")"
         )
 
+    def _normalize_payload(self, payload):
+        if isinstance(payload, list) and len(payload) == 1:
+            return payload[0]
+        return payload
+
+    def __eq__(self, other):
+        if not isinstance(other, KnxTelegram):
+            return NotImplemented
+
+        self_payload = (
+            None if self.dpt is None
+            else self._normalize_payload(self.dpt.payload)
+        )
+
+        other_payload = (
+            None if other.dpt is None
+            else self._normalize_payload(other.dpt.payload)
+        )
+        
+        return (
+            self.address == other.address
+            and self.telegram_type == other.telegram_type
+            and self_payload == other_payload
+        )
+
+    def __ne__(self,other):
+        return not self.__eq__(other)
+
 class DPT:
 
     @staticmethod

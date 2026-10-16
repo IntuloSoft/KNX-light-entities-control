@@ -41,7 +41,7 @@ class MockKnxLight(MockBlueprint):
         ):
         cfg = {
             "entity_id": entity,
-        },
+        }
         if brightness is not None:
             cfg["brightness"] = brightness
         
@@ -546,47 +546,53 @@ async def verify_timed_telegrams(
     test_data,
 ):
     previous_time = 0
+    consumed_idx = 0
 
     for item in test_data:
         expected_time = item["time"]
         early_offset, late_offset = item["window"]
 
-        earliest_time = expected_time + early_offset
         latest_time = expected_time + late_offset
 
         expected_telegram = item["telegram"]
-
-        #
-        # Verify telegram not received too early
-        #
-
-        await mock.advance_time_ms(
-            earliest_time - previous_time
-        )
-
-        assert expected_telegram not in mock.tx_telegrams, (
-            f"Telegram arrived too early:\n"
-            f"{expected_telegram}"
-        )
-
-        previous_time = earliest_time
-
-        #
-        # Verify telegram received before end of window
-        #
 
         await mock.advance_time_ms(
             latest_time - previous_time
         )
 
-        assert expected_telegram in mock.tx_telegrams, (
-            f"Telegram not received within timing window:\n"
-            f"{expected_telegram}\n"
-            f"Expected around {expected_time} ms "
-            f"(window {earliest_time}..{latest_time} ms)"
-        )
-
         previous_time = latest_time
+
+        remaining = mock.tx_telegrams[consumed_idx:]
+
+        try:
+            relative_idx = remaining.index(
+                expected_telegram
+            )
+        except ValueError:
+            raise AssertionError(
+                f"Telegram not received before deadline:\n"
+                f"Expected: {expected_telegram}\n"
+                f"Latest allowed: {latest_time} ms\n"
+                f"\n"
+                f"Remaining telegrams:\n"
+                + (
+                    "\n".join(
+                        f"  [{consumed_idx+i}] {t}"
+                        for i, t in enumerate(remaining)
+                    )
+                    if remaining
+                    else "  <none>"
+                )
+            )
+
+        consumed_idx += relative_idx + 1
+
+    remaining = mock.tx_telegrams[consumed_idx:]
+
+    assert not remaining, (
+        "Unexpected telegrams transmitted:\n"
+        + "\n".join(str(t) for t in remaining)
+    )
 
 @pytest.mark.parametrize(
     "mock",

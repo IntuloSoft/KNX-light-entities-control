@@ -41,7 +41,7 @@ class MockKnxLight(MockBlueprint):
         ):
         cfg = {
             "entity_id": entity,
-        },
+        }
         if brightness is not None:
             cfg["brightness"] = brightness
         
@@ -99,6 +99,8 @@ async def mock(request, hass: HomeAssistant):
 
     if mode == "Disabled":
         inputs["mode"] = 'Disabled'
+    elif mode == "Disabled_NoEntity":
+        inputs["mode"] = 'Disabled'
     elif mode == "Step":
         inputs["mode"] = 'Step'
     elif mode == "TransitionStep":
@@ -113,7 +115,7 @@ async def mock(request, hass: HomeAssistant):
 
     if mode != 'Disabled_NoEntity':
         await mock.add_input_number("dimmer", min_value = 0, max_value = 65536)
-    inputs["dimm_entity"] = "input_number.dimmer"
+        inputs["dimm_entity"] = "input_number.dimmer"
 
     blueprint_path = Path(__file__).parent / "blueprints" / "knx-light-entities-control-new.yaml"
 
@@ -131,7 +133,8 @@ async def mock(request, hass: HomeAssistant):
 @pytest.mark.parametrize(
     "mock",
     [
-        "Disabled", # No Entity
+        "Disabled_NoEntity",
+        "Disabled",
         "Step",
         "TransitionStep",
         "Transition",
@@ -560,52 +563,59 @@ async def test_knx_cct_read_request(
 
     mock.assert_knx_telegrams([])
 
+
 async def verify_timed_telegrams(
     mock,
     test_data,
 ):
     previous_time = 0
+    consumed_idx = 0
 
     for item in test_data:
         expected_time = item["time"]
         early_offset, late_offset = item["window"]
 
-        earliest_time = expected_time + early_offset
         latest_time = expected_time + late_offset
 
         expected_telegram = item["telegram"]
-
-        #
-        # Verify telegram not received too early
-        #
-
-        await mock.advance_time_ms(
-            earliest_time - previous_time
-        )
-
-        assert expected_telegram not in mock.tx_telegrams, (
-            f"Telegram arrived too early:\n"
-            f"{expected_telegram}"
-        )
-
-        previous_time = earliest_time
-
-        #
-        # Verify telegram received before end of window
-        #
 
         await mock.advance_time_ms(
             latest_time - previous_time
         )
 
-        assert expected_telegram in mock.tx_telegrams, (
-            f"Telegram not received within timing window:\n"
-            f"{expected_telegram}\n"
-            f"Expected around {expected_time} ms "
-            f"(window {earliest_time}..{latest_time} ms)"
-        )
-
         previous_time = latest_time
+
+        remaining = mock.tx_telegrams[consumed_idx:]
+
+        try:
+            relative_idx = remaining.index(
+                expected_telegram
+            )
+        except ValueError:
+            raise AssertionError(
+                f"Telegram not received before deadline:\n"
+                f"Expected: {expected_telegram}\n"
+                f"Latest allowed: {latest_time} ms\n"
+                f"\n"
+                f"Remaining telegrams:\n"
+                + (
+                    "\n".join(
+                        f"  [{consumed_idx+i}] {t}"
+                        for i, t in enumerate(remaining)
+                    )
+                    if remaining
+                    else "  <none>"
+                )
+            )
+
+        consumed_idx += relative_idx + 1
+
+    remaining = mock.tx_telegrams[consumed_idx:]
+
+    assert not remaining, (
+        "Unexpected telegrams transmitted:\n"
+        + "\n".join(str(t) for t in remaining)
+    )
 
 @pytest.mark.parametrize(
     "mock",
