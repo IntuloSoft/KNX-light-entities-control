@@ -508,7 +508,7 @@ actions:
                 then:
                   - action: light.turn_on
                     data:
-                      brightness: target_brightness
+                      brightness: "{{target_brightness}}"
                       transition: "{{ (initial_brightness - target_brightness) / 255 * dimm_time }}"
                     target:
                       entity_id: "{{ light_entity }}"
@@ -567,10 +567,20 @@ actions:
                                 - condition: template
                                   value_template: "{{ value_state_address != None }}"
                               then:
+                                - variables:
+                                    new_brightness: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) - dimm_step) | round(0,'trunc') | int(0)), target_brightness) | max), 255) | min }}"
+                                - if:
+                                    - condition: template
+                                      value_template: "{{ new_brightness == 0 }}"
+                                  then:
+                                    - action: knx.send
+                                      data:
+                                        address: "{{ switch_state_address }}"
+                                        payload: 0
                                 - action: knx.send
                                   data:
                                     address: "{{ value_state_address }}"
-                                    payload: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) - dimm_step) | round(0,'trunc') | int(0)), target_brightness) | max), 255) | min }}"
+                                    payload: "{{ new_brightness }}"
                             - action: input_number.set_value
                               data:
                                 value: "{{ states(dimm_entity) | int + (next_Brightness / 1000) }}"
@@ -775,8 +785,7 @@ actions:
                         target:
                           entity_id: !input dimm_entity
                         data:
-                          value: >
-                            {{ states(dimm_entity) | float - (states(dimm_entity) | int | bitwise_and(FLAG_STATE_ON)) }}
+                          value: "{{ states(dimm_entity) | float - (states(dimm_entity) | int | bitwise_and(FLAG_STATE_ON)) }}"
 
                   # Light turned ON
                   - conditions:
