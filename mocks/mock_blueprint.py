@@ -378,8 +378,8 @@ class MockBlueprint():
             try:
                 lines.append(
                     f"{t.address:<10} "
-                    f"{t.telegram_type:<10} "
-                    f"{t.value}"
+                    f"{t.telegram_type.__name__:<10} "
+                    f"{t.dpt.payload}"
                 )
             except TypeError as e:
                 assert False, f"{type(t.telegram_type)} {repr(t.telegram_type)}"
@@ -441,6 +441,9 @@ class MockBlueprint():
 
                 if isinstance(exp.dpt.payload, list) and len(exp.dpt.payload) == 1:
                     exp.dpt.payload = exp.dpt.payload[0]
+
+                if isinstance(actual.dpt.payload, list) and len(actual.dpt.payload) == 1:
+                    actual.dpt.payload = actual.dpt.payload[0]
 
 
                 assert (
