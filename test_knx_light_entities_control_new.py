@@ -63,7 +63,11 @@ class MockKnxLight(MockBlueprint):
 
 @pytest.fixture
 async def mock(request, hass: HomeAssistant):
-    mode = request.param
+    if isinstance(request.param, dict):
+        mode = request.param["mode"]
+    else:
+        mode = request.param
+
     assert mode in [
         "Disabled_NoEntity",
         "Disabled",
@@ -96,6 +100,11 @@ async def mock(request, hass: HomeAssistant):
         "rgb_color_address": RGB_COLOR_ADDRESS,
         "rgb_color_state_address": RGB_COLOR_STATE_ADDRESS,
     }
+
+    if isinstance(request.param, dict):
+        for key, value in request.param.items():
+            if key != "mode":
+                inputs[key] = value
 
     if mode == "Disabled":
         inputs["mode"] = 'Disabled'
@@ -721,10 +730,64 @@ async def test_dim_down_feedback_steps(
         {"time": 17 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 34))},
         {"time": 18 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 21))},
         {"time": 19 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  8))},
+        {"time": 20 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  0))},
+        {"time": 20 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True))},
     ]
     
     await verify_timed_telegrams(mock,test_data)
 
+
+@pytest.mark.parametrize(
+    "mock",
+    [
+        # "Disabled_NoEntity",
+        # "Disabled",
+        {"mode":"Step",                                     "dimm_prevent_turn_off": True},
+        {"mode":"TransitionStep",                           "dimm_prevent_turn_off": True},
+        {"mode":"Transition",                               "dimm_prevent_turn_off": True},
+        {"mode":"TransitionStep_TransitionNotSupported",    "dimm_prevent_turn_off": True},
+        {"mode":"Transition_TransitionNotSupported",        "dimm_prevent_turn_off": True},
+    ],
+    indirect=True,
+)
+async def test_dim_down_no_off_feedback_steps(
+    mock,
+):
+    await mock.light_turn_on(brightness=255)
+    mock.clear_knx_tx()
+
+    await mock.send_knx_group_value_write(
+        DIMM_ADDRESS,
+        DPT.dim_down(),
+    )
+
+    INTERVAL_MS = 255
+    MARGIN_MS = 10
+
+    test_data = [
+        {"time":  1 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(242))},
+        {"time":  2 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(229))},
+        {"time":  3 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(216))},
+        {"time":  4 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(203))},
+        {"time":  5 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(190))},
+        {"time":  6 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(177))},
+        {"time":  7 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(164))},
+        {"time":  8 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(151))},
+        {"time":  9 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(138))},
+        {"time": 10 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(125))},
+        {"time": 11 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(112))},
+        {"time": 12 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 99))},
+        {"time": 13 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 86))},
+        {"time": 14 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 73))},
+        {"time": 15 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 60))},
+        {"time": 16 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 47))},
+        {"time": 17 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 34))},
+        {"time": 18 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 21))},
+        {"time": 19 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  8))},
+        {"time": 20 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  1))},
+    ]
+    
+    await verify_timed_telegrams(mock,test_data)
 
 @pytest.mark.parametrize(
     "mock",

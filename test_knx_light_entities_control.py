@@ -644,6 +644,7 @@ async def test_dim_up_feedback_steps(
         {"time": 18 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(234))},
         {"time": 19 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(247))},
         {"time": 19 * INTERVAL_MS + FINAL_STEP_MS, "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255))},
+        # {"time": 19 * INTERVAL_MS + FINAL_STEP_MS, "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255))},
     ]
 
     await verify_timed_telegrams(mock,test_data)
@@ -696,6 +697,8 @@ async def test_dim_down_feedback_steps(
         {"time": 17 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 34))},
         {"time": 18 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 21))},
         {"time": 19 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  8))},
+        {"time": 19 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/1", GroupValueWrite, DPT.binary( False))},
+        {"time": 19 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  0))},
     ]
     
     await verify_timed_telegrams(mock,test_data)
