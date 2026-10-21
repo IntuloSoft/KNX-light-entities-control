@@ -86,6 +86,7 @@ async def mock(request, hass: HomeAssistant):
 
     mock =  MockKnxLight(hass,mode)
     await mock.register_on_knx_transmit()
+    await mock.register_on_logger()
     await mock.add_test_light("light.test",transition_supported)
 
     inputs={
@@ -681,6 +682,36 @@ async def test_dim_up_feedback_steps(
 
     await verify_timed_telegrams(mock,test_data)
     
+    await mock.advance_time_ms(1000)
+    assert len(mock.tx_telegrams) == 21
+
+
+@pytest.mark.parametrize(
+    "mock",
+    [
+        # "Disabled_NoEntity",
+        # "Disabled",
+        {"mode":"Step",                                     "dimm_prevent_turn_on": True},
+        {"mode":"TransitionStep",                           "dimm_prevent_turn_on": True},
+        {"mode":"Transition",                               "dimm_prevent_turn_on": True},
+        {"mode":"TransitionStep_TransitionNotSupported",    "dimm_prevent_turn_on": True},
+        {"mode":"Transition_TransitionNotSupported",        "dimm_prevent_turn_on": True},
+    ],
+    indirect=True,
+)
+async def test_dim_prevent_turn_on_switch_on_feedback_steps(
+    mock,
+):
+    await mock.light_turn_on(brightness=0)
+    mock.clear_knx_tx()
+
+    await mock.send_knx_group_value_write(
+        DIMM_ADDRESS,
+        DPT.dim_up(),
+    )
+
+    await mock.advance_time_ms(1000)
+    assert len(mock.tx_telegrams) == 0
 
 
 @pytest.mark.parametrize(
@@ -730,12 +761,14 @@ async def test_dim_down_feedback_steps(
         {"time": 17 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 34))},
         {"time": 18 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent( 21))},
         {"time": 19 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  8))},
+        {"time": 20 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(False))},
         {"time": 20 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  0))},
-        {"time": 20 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/1", GroupValueWrite, DPT.binary(True))},
     ]
     
     await verify_timed_telegrams(mock,test_data)
 
+    await mock.advance_time_ms(1000)
+    assert len(mock.tx_telegrams) == 21
 
 @pytest.mark.parametrize(
     "mock",
@@ -786,8 +819,12 @@ async def test_dim_down_no_off_feedback_steps(
         {"time": 19 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  8))},
         {"time": 20 * INTERVAL_MS, "window": (-MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(  1))},
     ]
-    
+
     await verify_timed_telegrams(mock,test_data)
+    
+    await mock.advance_time_ms(1000)
+    assert len(mock.tx_telegrams) == 20
+
 
 @pytest.mark.parametrize(
     "mock",

@@ -55,10 +55,12 @@ class KnxTelegram:
             f")"
         )
 
+
     def _normalize_payload(self, payload):
         if isinstance(payload, list) and len(payload) == 1:
             return payload[0]
         return payload
+
 
     def __eq__(self, other):
         if not isinstance(other, KnxTelegram):
@@ -80,8 +82,10 @@ class KnxTelegram:
             and self_payload == other_payload
         )
 
+
     def __ne__(self,other):
         return not self.__eq__(other)
+
 
 class DPT:
 
@@ -123,6 +127,7 @@ class DPT:
             dpt_name="DPTControlDimming",
         )
 
+
     @staticmethod
     def percent(value: int):
         return KnxValue(
@@ -131,6 +136,7 @@ class DPT:
             dpt_name="DPTPercentU8",
         )
 
+
     @staticmethod
     def rgb(r: int, g: int, b: int):
         return KnxValue(
@@ -138,6 +144,7 @@ class DPT:
             value=[r, g, b],
             dpt_name="DPTRGB",
         )
+
 
     @staticmethod
     def color_temperature(kelvin: int):
@@ -170,8 +177,10 @@ class MockBlueprint():
 
         self._loop_time_patch.start()
 
+
     def close(self):
         self._loop_time_patch.stop()
+
 
     def _process_due_timers(self):
 
@@ -191,11 +200,14 @@ class MockBlueprint():
     def current_datetime(self):
         return self._wall_time
 
+
     def current_monotonic(self):
         return self._monotonic_time
-    
+
+
     async def wait_for_idle(self):
         await self.hass.async_block_till_done()
+
 
     async def advance_time_ms(
         self,
@@ -227,6 +239,7 @@ class MockBlueprint():
 
         return blueprint_filename
 
+
     async def _load_blueprint_file(self, blueprint_str, blueprint_filename):
         bp_dir = Path(self.hass.config.path("blueprints/automation/test"))
         bp_dir.mkdir(parents=True, exist_ok=True)
@@ -235,6 +248,7 @@ class MockBlueprint():
         bp_path.write_text(blueprint_str)
 
         return bp_path
+
 
     async def load_blueprint_instance(self, blueprint_filename, inputs):
         AUTOMATION_CONFIG = {
@@ -265,6 +279,7 @@ class MockBlueprint():
             cb,
         )
 
+
     # input_boolean
     async def add_input_boolean(
         self,
@@ -279,6 +294,7 @@ class MockBlueprint():
                 }
             },
         )
+
 
     async def add_input_number(
         self,
@@ -317,6 +333,7 @@ class MockBlueprint():
             )
         )
 
+
     async def _on_knx_send(
         self,
         service_call,
@@ -345,6 +362,7 @@ class MockBlueprint():
             dpt=dpt,
         )
 
+
     async def _on_knx_read(
         self,
         service_call,
@@ -353,6 +371,17 @@ class MockBlueprint():
             address=service_call.data["address"],
             telegram_type=GroupValueRead,
         )
+
+
+    async def _on_log(
+        self,
+        service_call,
+    ):
+        import logging
+
+        _LOGGER = logging.getLogger(__name__)
+        _LOGGER.info(f"logger.log: {service_call.data}")
+
 
     async def register_on_knx_transmit(self):
 
@@ -366,6 +395,17 @@ class MockBlueprint():
             "knx",
             "read",
             self._on_knx_read,
+        )
+
+        await self.hass.async_block_till_done()
+
+
+    async def register_on_logger(self):
+    
+        await self.register_service(
+            "logger",
+            "log",
+            self._on_log,
         )
 
         await self.hass.async_block_till_done()
@@ -385,6 +425,7 @@ class MockBlueprint():
                 assert False, f"{type(t.telegram_type)} {repr(t.telegram_type)}"
 
         return "\n".join(lines)
+
 
     def assert_knx_telegrams(
         self,
@@ -457,8 +498,10 @@ class MockBlueprint():
                     f"Actual telegram:   {actual}"
                 )
 
+
     def clear_knx_tx(self):
         self.tx_telegrams.clear()
+
 
     async def _send_knx_telegram(
         self,
@@ -499,6 +542,7 @@ class MockBlueprint():
 
         # await self.hass.async_block_till_done()
 
+
     async def send_knx_group_value_write(
         self,
         destination,
@@ -509,7 +553,8 @@ class MockBlueprint():
             GroupValueWrite,
             dpt,
         )
-    
+
+
     async def send_knx_group_value_read(
         self,
         destination,
@@ -519,6 +564,7 @@ class MockBlueprint():
             GroupValueRead,
             None,
         )
+
 
     async def send_knx_group_value_response(
         self,
@@ -530,6 +576,7 @@ class MockBlueprint():
             GroupValueResponse,
             dpt,
         )
+
 
     # Light functionality
     async def add_test_light(
@@ -551,6 +598,7 @@ class MockBlueprint():
 
         await component.async_add_entities([self.light])
         await self.hass.async_block_till_done()
+
 
     def assert_state(
         self,
