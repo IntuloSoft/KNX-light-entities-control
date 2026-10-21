@@ -495,6 +495,7 @@ actions:
                 value_template: "{{ ((not dimm_prevent_turn_off) and initial_brightness > 0) or (initial_brightness > 1) }}"
             sequence:
               - variables:
+                  target_brightness: "{{ 1 if dimm_prevent_turn_off else 0 }}"
                   current_dimm_steps: >-
                     {% if dimm_prevent_turn_off %}
                       {{ (([(initial_brightness - 1), 0] | max) / 255 * dimm_steps) | round(0, 'ceil') | int }}
@@ -514,23 +515,12 @@ actions:
                   - condition: template
                     value_template: "{{ is_transition_mode }}"
                 then:
-                  - if:
-                      - condition: template
-                        value_template: "{{ not dimm_prevent_turn_off }}"
-                    then:
-                      - action: light.turn_on
-                        data:
-                          brightness: 1
-                          transition: "{{ (initial_brightness - 1) / 255 * dimm_time }}"
-                        target:
-                          entity_id: "{{ light_entity }}"
-                    else:
-                      - action: light.turn_on
-                        data:
-                          brightness: 0
-                          transition: "{{ (initial_brightness) / 255 * dimm_time }}"
-                        target:
-                          entity_id: "{{ light_entity }}"
+                  - action: light.turn_on
+                    data:
+                      brightness: target_brightness
+                      transition: "{{ (initial_brightness - target_brightness) / 255 * dimm_time }}"
+                    target:
+                      entity_id: "{{ light_entity }}"
               - repeat:
                   sequence:
                     - variables:
@@ -589,7 +579,7 @@ actions:
                                 - action: knx.send
                                   data:
                                     address: "{{ value_state_address }}"
-                                    payload: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) - dimm_step) | round(0,'trunc') | int(0)), 0) | max), 255) | min }}"
+                                    payload: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) - dimm_step) | round(0,'trunc') | int(0)), target_brightness) | max), 255) | min }}"
                             - action: input_number.set_value
                               data:
                                 value: "{{ states(dimm_entity) | int + (next_Brightness / 1000) }}"
