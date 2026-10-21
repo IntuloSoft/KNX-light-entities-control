@@ -405,15 +405,6 @@ actions:
                           {% else %}
                             {{ dimm_step_ms }}
                           {% endif %}
-                    # - if:
-                    #     - condition: template
-                    #       value_template: "{{ is_step_mode }}"
-                    #   then:
-                    #     - action: light.turn_on
-                    #       data:
-                    #         brightness: "{{ next_Brightness }}"
-                    #       target:
-                    #         entity_id: "{{ light_entity }}"
                     - if:
                         - condition: template
                           value_template: "{{ is_transition_mode or is_transition_step_mode }}"
