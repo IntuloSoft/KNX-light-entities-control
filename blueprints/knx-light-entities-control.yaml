@@ -2,7 +2,7 @@ blueprint:
   name: KNX - Light entities control
   description: |
     Use KNX to control an Home Assistant light entity with optional switching, relative dimming, absolute dimming, tunable white, and RGB color telegrams (+ state feedback)
-    **Version**: 2026.10.4
+    **Version**: 2026.10.5
   author: kalhimeo
   source_url: https://gist.github.com/kalhimeo/88f6e38b45aa872961cc7b748eacef3d
   domain: automation
@@ -159,7 +159,7 @@ variables:
   _dimm_steps: !input dimm_steps
   dimm_no_off: !input dimm_no_off
   dimm_no_on: !input dimm_no_on
-  dimm_time: "{{ _dimm_time | float(default=4) }}"
+  dimm_time: "{{ _dimm_time | float(default=5) }}"
   dimm_steps: "{{ _dimm_steps | int(default=20) }}"
   dimm_step: "{{ (255 / dimm_steps) | round(0,'ceil') }}"
   dimm_delay: "{{ dimm_time * 1000 / 255 * dimm_step }}"
@@ -309,7 +309,7 @@ actions:
               # classic dimming
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ states[dimm_entity].domain == 'input_boolean' }}"
                 then:
                   - action: input_boolean.turn_on
                     data: {}
@@ -322,11 +322,11 @@ actions:
                         value_template: "{{ (states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming }}" # Currently Dimming?
                     then:
                       - variables:
-                          curent_DimmSeconds: >-
+                          current_DimmSeconds: >-
                             {{ now().timestamp() - (states[dimm_entity].last_changed | as_datetime | as_local).timestamp() }}
                           dimm_Fraction: >-
-                            {{ curent_DimmSeconds * 1000 / dimm_delay }}
-                          current_Brigthness: >-
+                            {{ current_DimmSeconds * 1000 / dimm_delay }}
+                          current_Brightness: >-
                             {% if (states(dimm_entity) | int | bitwise_and(const_DirectionUp)) == const_DirectionUp %}
                               {{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) + dimm_Fraction * dimm_step) | round(0,'trunc') | int(0)), 255) | min), 0) | max }}
                             {% else %}
@@ -338,12 +338,16 @@ actions:
                           value: "{{ states(dimm_entity) | float - (states(dimm_entity) | int | bitwise_and(const_Dimming)) }}" # Remove Dimming Flag
                         target:
                           entity_id: !input dimm_entity
-                      - action: light.turn_on
-                        data:
-                          brightness: "{{ current_Brigthness }}"
-                          transition: 0
-                        target:
-                          entity_id: "{{ light_entity }}"
+                      - if:
+                          - condition: template
+                            value_template: "{{ transition_supported }}"
+                        then:
+                          - action: light.turn_on
+                            data:
+                              brightness: "{{ current_Brightness }}"
+                              transition: 0
+                            target:
+                              entity_id: "{{ light_entity }}"
           # start dimm up command
           - conditions:
               - condition: template
@@ -358,7 +362,7 @@ actions:
               # classic dimming
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ states[dimm_entity].domain == 'input_boolean' }}"
                 then:
                   - action: input_boolean.turn_off
                     data: {}
@@ -394,11 +398,11 @@ actions:
                           {% endif %}
                     - if:
                         - condition: template
-                          value_template: "{{ transition_supported }}"
+                          value_template: "{{ transition_supported and (states[dimm_entity].domain == 'input_number') }}"
                       then:
                         - if:
                             - condition: template
-                              value_template: "{{ (not reduce_server_load) or (states[dimm_entity].domain != 'input_number') }}"
+                              value_template: "{{ not reduce_server_load }}"
                           then:
                             - action: light.turn_on
                               data:
@@ -408,7 +412,7 @@ actions:
                                 entity_id: "{{ light_entity }}"
                         - if:
                             - condition: template
-                              value_template: "{{ repeat.first and (initial_brightness == 0) and (states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) != const_StateOn) }}" # Last sent state was 'off'
+                              value_template: "{{ repeat.first and (initial_brightness == 0) and ((states(dimm_entity) | int | bitwise_and(const_StateOn)) != const_StateOn) }}" # Last sent state was 'off'
                           then:
                             - action: knx.send
                               data:
@@ -430,7 +434,7 @@ actions:
                       then:
                         - if:
                             - condition: template
-                              value_template: "{{ (not reduce_server_load) or (states[dimm_entity].domain != 'input_number') }}"
+                              value_template: "{{ (states[dimm_entity].domain == 'input_number') }}"
                           then:
                             - action: input_number.set_value
                               metadata: {}
@@ -440,22 +444,17 @@ actions:
                                 entity_id: !input dimm_entity
                         - if:
                             - condition: template
-                              value_template: "{{ transition_supported }}"
+                              value_template: "{{ transition_supported and (states[dimm_entity].domain == 'input_number') }}"
                           then:
                             - if:
                                 - condition: template
                                   value_template: "{{ value_state_address != None }}"
                               then:
-                                - variables:
-                                    curent_DimmSeconds: >-
-                                      {{ now().timestamp() - (states[dimm_entity].last_changed | as_datetime | as_local).timestamp() }}
-                                    dimm_Fraction: >-
-                                      {{ curent_DimmSeconds * 1000 / dimm_delay }}
                                 - action: knx.send
                                   data:
                                     address: "{{ value_state_address }}"
                                     type: percentU8
-                                    payload: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) + dimm_Fraction * dimm_step) | round(0,'trunc') | int(0)), 255) | min), 0) | max }}"
+                                    payload: "{{ next_Brightness }}"
                           else:
                             - action: light.turn_on
                               data:
@@ -467,7 +466,7 @@ actions:
                       value_template: "{{ (((states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) != const_Dimming))) or ((states[dimm_entity].domain == 'input_boolean') and (states(dimm_entity) == 'on')) or (repeat.index >= current_dimm_steps) }}"
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ states[dimm_entity].domain == 'input_boolean' }}"
                 then:
                   - action: input_boolean.turn_off
                     data: {}
@@ -497,7 +496,7 @@ actions:
               # classic dimming 
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ states[dimm_entity].domain == 'input_boolean' }}"
                 then:
                   - action: input_boolean.turn_off
                     data: {}
@@ -549,7 +548,7 @@ actions:
                           {% endif %}
                     - if:
                         - condition: template
-                          value_template: "{{ transition_supported }}"
+                          value_template: "{{ transition_supported and (states[dimm_entity].domain == 'input_number') }}"
                       then:
                         - if:
                             - condition: template
@@ -571,7 +570,7 @@ actions:
                       then:
                         - if:
                             - condition: template
-                              value_template: "{{ (not reduce_server_load) or (states[dimm_entity].domain != 'input_number') }}"
+                              value_template: "{{ states[dimm_entity].domain == 'input_number' }}"
                           then:
                             - action: input_number.set_value
                               metadata: {}
@@ -585,18 +584,21 @@ actions:
                           then:
                             - if:
                                 - condition: template
+                                  value_template: "{{ next_Brightness == 0 }}"
+                              then:
+                                - action: knx.send
+                                  data:
+                                    address: "{{ switch_state_address }}"
+                                    payload: 0
+                            - if:
+                                - condition: template
                                   value_template: "{{ value_state_address != None }}"
                               then:
-                                - variables:
-                                    curent_DimmSeconds: >-
-                                      {{ now().timestamp() - (states[dimm_entity].last_changed | as_datetime | as_local).timestamp() }}
-                                    dimm_Fraction: >-
-                                      {{ curent_DimmSeconds * 1000 / dimm_delay }}
                                 - action: knx.send
                                   data:
                                     address: "{{ value_state_address }}"
                                     type: percentU8
-                                    payload: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) - dimm_Fraction * dimm_step) | round(0,'trunc') | int(0)), 0) | max), 255) | min }}"
+                                    payload: "{{ next_Brightness }}"
                           else:
                             - action: light.turn_on
                               data:
@@ -609,7 +611,7 @@ actions:
               # classic dimming
               - if:
                   - condition: template
-                    value_template: "{{ states[dimm_entity].domain == 'input_boolean'}}"
+                    value_template: "{{ states[dimm_entity].domain == 'input_boolean' }}"
                 then:
                   - action: input_boolean.turn_off
                     data: {}
@@ -748,14 +750,14 @@ actions:
           id: "light_entity"
       sequence:
 
-# SWITCH change
+      # SWITCH change
         - if:
             - condition: template
               value_template: "{{ trigger.to_state.state != trigger.from_state.state }}"
             - condition: template
               value_template: "{{ switch_state_address != None }}"
-##            - condition: template
-##              value_template: "{{ not (transition_supported and (states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
+            - condition: template
+              value_template: "{{ not (transition_supported and dimm_entity and (states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
           then:
             - choose:
                 - conditions:
@@ -799,8 +801,8 @@ actions:
         - if:
             - condition: template
               value_template: "{{ value_state_address != None }}"
-##            - condition: template
-##              value_template: "{{ not (transition_supported and (states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
+            - condition: template
+              value_template: "{{ not (transition_supported and dimm_entity and (states[dimm_entity].domain == 'input_number') and ((states(dimm_entity) | int | bitwise_and(const_Dimming)) == const_Dimming)) }}"
             - condition: or
               conditions:
                 - condition: template
@@ -841,7 +843,7 @@ actions:
           then:
             - if:
                 - condition: template
-                  value_template: "{{ trigger.to_state.attributes.brightness is defined }}"
+                  value_template: "{{ trigger.to_state.attributes.color_temp_kelvin is defined }}"
               then:
                 - action: knx.send
                   data:
