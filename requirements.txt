@@ -1,5 +1,7 @@
+pytest
 xknx
 xknxproject
 knx_frontend
 homeassistant[test]
 xknx
+pytest-homeassistant-custom-component
