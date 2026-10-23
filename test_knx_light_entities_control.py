@@ -28,9 +28,8 @@ RGB_COLOR_ADDRESS           = "1/1/7"
 RGB_COLOR_STATE_ADDRESS     = "1/1/8"
 
 class MockKnxLight(MockBlueprint):
-    def __init__(self, hass, mode):
+    def __init__(self, hass):
         super().__init__(hass)
-        self.mode = mode
 
     async def light_turn_on(
             mock,
@@ -63,30 +62,23 @@ class MockKnxLight(MockBlueprint):
 
 @pytest.fixture
 async def mock(request, hass: HomeAssistant):
-    if isinstance(request.param, dict):
-        mode = request.param["mode"]
-    else:
-        mode = request.param
+    cfg = request.param
 
-    assert mode in [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
+    mock =  MockKnxLight(hass)
+
+    mock.dimm_entity = cfg["dimm_entity"]
+    mock.transition_supported = cfg["transition_supported"]
+    mock.reduce_server_load = cfg["reduce_server_load"]
+
+    assert mock.dimm_entity in [
+        None,
+        "input_boolean",
+        "input_number"
     ]
 
-    transition_supported = mode not in [
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ]
-
-
-    mock =  MockKnxLight(hass,mode)
     await mock.register_on_knx_transmit()
     await mock.register_on_logger()
-    await mock.add_test_light("light.test",transition_supported)
+    await mock.add_test_light("light.test",mock.transition_supported)
 
     inputs={
         "light_entity": "light.test",
@@ -101,23 +93,20 @@ async def mock(request, hass: HomeAssistant):
         "rgb_color_state_address": RGB_COLOR_STATE_ADDRESS,
     }
 
-    if isinstance(request.param, dict):
-        for key, value in request.param.items():
-            if key != "mode":
-                inputs[key] = value
+    if "dimm_no_on" in cfg:
+        inputs["dimm_no_on"] = cfg["dimm_no_on"]
 
-    if mode in ["Transition", "Transiton_TransitioNotSupported"]:
-        inputs["reduce_server_load"] = True
-    
-    if mode == "Step":
+    if "dimm_no_off" in cfg:
+        inputs["dimm_no_off"] = cfg["dimm_no_off"]
+
+    inputs["reduce_server_load"] = mock.reduce_server_load
+
+    if mock.dimm_entity is None:
+        pass
+    elif mock.dimm_entity == 'input_boolean':
         await mock.add_input_boolean("dimmer")
         inputs["dimm_entity"] = "input_boolean.dimmer"
-    elif mode in [
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ]:
+    elif mock.dimm_entity == 'input_number':
         await mock.add_input_number("dimmer", min_value = 0, max_value = 65536)
         inputs["dimm_entity"] = "input_number.dimmer"
 
@@ -134,17 +123,56 @@ async def mock(request, hass: HomeAssistant):
 
     mock.close()
 
+
+all_input_combinations = [
+    pytest.param({"dimm_entity": None,            "transition_supported": False, "reduce_server_load": False},id="[None, transition not supported]"),
+    pytest.param({"dimm_entity": None,            "transition_supported": False, "reduce_server_load": True },id="[None, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": None,            "transition_supported": True,  "reduce_server_load": False},id="[None, transition supported]"),
+    pytest.param({"dimm_entity": None,            "transition_supported": True,  "reduce_server_load": True },id="[None, transition supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": False, "reduce_server_load": False},id="[in_bool, transition not supported]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": False, "reduce_server_load": True },id="[in_bool, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": True,  "reduce_server_load": False},id="[in_bool, transition supported]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": True,  "reduce_server_load": True },id="[in_bool, transition supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": False, "reduce_server_load": False},id="[in_nmbr, transition not supported]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": False, "reduce_server_load": True },id="[in_nmbr, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": True,  "reduce_server_load": False},id="[in_nmbr, transition supported]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": True,  "reduce_server_load": True },id="[in_nmbr, transition supported, reduce load]"),
+]
+all_input_combinations_with_dim_entity = [
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": False, "reduce_server_load": False},id="[in_bool, transition not supported]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": False, "reduce_server_load": True },id="[in_bool, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": True,  "reduce_server_load": False},id="[in_bool, transition supported]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": True,  "reduce_server_load": True },id="[in_bool, transition supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": False, "reduce_server_load": False},id="[in_nmbr, transition not supported]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": False, "reduce_server_load": True },id="[in_nmbr, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": True,  "reduce_server_load": False},id="[in_nmbr, transition supported]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": True,  "reduce_server_load": True },id="[in_nmbr, transition supported, reduce load]"),
+]
+dim_no_on_combinations = [
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": False, "reduce_server_load": False, "dimm_no_on": True},id="[in_bool, transition not supported]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": False, "reduce_server_load": True,  "dimm_no_on": True},id="[in_bool, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": True,  "reduce_server_load": False, "dimm_no_on": True},id="[in_bool, transition supported]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": True,  "reduce_server_load": True,  "dimm_no_on": True},id="[in_bool, transition supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": False, "reduce_server_load": False, "dimm_no_on": True},id="[in_nmbr, transition not supported]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": False, "reduce_server_load": True,  "dimm_no_on": True},id="[in_nmbr, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": True,  "reduce_server_load": False, "dimm_no_on": True},id="[in_nmbr, transition supported]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": True,  "reduce_server_load": True,  "dimm_no_on": True},id="[in_nmbr, transition supported, reduce load]"),
+]
+dim_no_off_combinations = [
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": False, "reduce_server_load": False, "dimm_no_off": True},id="[in_bool, transition not supported]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": False, "reduce_server_load": True,  "dimm_no_off": True},id="[in_bool, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": True,  "reduce_server_load": False, "dimm_no_off": True},id="[in_bool, transition supported]"),
+    pytest.param({"dimm_entity": "input_boolean", "transition_supported": True,  "reduce_server_load": True,  "dimm_no_off": True},id="[in_bool, transition supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": False, "reduce_server_load": False, "dimm_no_off": True},id="[in_nmbr, transition not supported]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": False, "reduce_server_load": True,  "dimm_no_off": True},id="[in_nmbr, transition not supported, reduce load]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": True,  "reduce_server_load": False, "dimm_no_off": True},id="[in_nmbr, transition supported]"),
+    pytest.param({"dimm_entity": "input_number",  "transition_supported": True,  "reduce_server_load": True,  "dimm_no_off": True},id="[in_nmbr, transition supported, reduce load]"),
+]
+ 
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_light_can_turn_on(mock: MockBlueprint):
 
@@ -152,17 +180,11 @@ async def test_light_can_turn_on(mock: MockBlueprint):
 
     mock.assert_state("light.test", "on")
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_switch_turns_light_on(mock: MockBlueprint):
 
@@ -183,17 +205,11 @@ async def test_knx_switch_turns_light_on(mock: MockBlueprint):
         ]
     )
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_switch_read_request(mock: MockBlueprint):
 
@@ -223,17 +239,11 @@ async def test_knx_switch_read_request(mock: MockBlueprint):
     assert len(mock.tx_telegrams) == 0
     mock.assert_knx_telegrams([])
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
 
@@ -253,17 +263,11 @@ async def test_knx_brightness_turns_light_on(mock: MockBlueprint):
         == 128
     )
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_light_brightness_feedback(mock: MockBlueprint):
 
@@ -276,17 +280,11 @@ async def test_light_brightness_feedback(mock: MockBlueprint):
         ]
     )
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
 
@@ -302,17 +300,11 @@ async def test_knx_brightness_zero_turns_light_off(mock: MockBlueprint):
         "off",
     )
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_brightness_read_request(mock: MockBlueprint):
 
@@ -341,17 +333,11 @@ async def test_knx_brightness_read_request(mock: MockBlueprint):
 
     assert len(mock.tx_telegrams) == 0
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_rgb_turns_light_on(
     mock: MockBlueprint,
@@ -373,17 +359,11 @@ async def test_knx_rgb_turns_light_on(
         == (255, 0, 0)
     )
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_light_rgb_feedback(
     mock: MockBlueprint,
@@ -401,17 +381,11 @@ async def test_light_rgb_feedback(
         ]
     )
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_rgb_read_request(
     mock: MockBlueprint,
@@ -441,17 +415,11 @@ async def test_knx_rgb_read_request(
 
     mock.assert_knx_telegrams([])
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_cct_turns_light_on(
     mock: MockBlueprint,
@@ -473,17 +441,11 @@ async def test_knx_cct_turns_light_on(
         == 3000
     )
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_light_cct_feedback(
     mock: MockBlueprint,
@@ -509,18 +471,12 @@ async def test_light_cct_feedback(
             ),
         ]
     )
-    
+
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations,
+    indirect=["mock"],
 )
 async def test_knx_cct_read_request(
     mock: MockBlueprint,
@@ -553,6 +509,7 @@ async def test_knx_cct_read_request(
     await mock.wait_for_idle()
 
     mock.assert_knx_telegrams([])
+
 
 async def verify_timed_telegrams(
     mock,
@@ -607,17 +564,11 @@ async def verify_timed_telegrams(
         + "\n".join(str(t) for t in remaining)
     )
 
+
 @pytest.mark.parametrize(
     "mock",
-    [
-        # "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations_with_dim_entity,
+    indirect=["mock"],
 )
 async def test_dim_up_feedback_steps(
     mock,
@@ -660,20 +611,12 @@ async def test_dim_up_feedback_steps(
     ]
 
     await verify_timed_telegrams(mock,test_data)
-    
 
 
 @pytest.mark.parametrize(
     "mock",
-    [
-        # "Disabled_NoEntity",
-        {"mode":"Step",                                     "dimm_no_on": True},
-        {"mode":"TransitionStep",                           "dimm_no_on": True},
-        {"mode":"Transition",                               "dimm_no_on": True},
-        {"mode":"TransitionStep_TransitionNotSupported",    "dimm_no_on": True},
-        {"mode":"Transition_TransitionNotSupported",        "dimm_no_on": True},
-    ],
-    indirect=True,
+    dim_no_on_combinations,
+    indirect=["mock"],
 )
 async def test_dim_prevent_turn_on_switch_on_feedback_steps(
     mock,
@@ -692,16 +635,8 @@ async def test_dim_prevent_turn_on_switch_on_feedback_steps(
 
 @pytest.mark.parametrize(
     "mock",
-    [
-        # "Disabled_NoEntity",
-        # "Disabled",
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations_with_dim_entity,
+    indirect=["mock"],
 )
 async def test_dim_down_feedback_steps(
     mock,
@@ -743,18 +678,14 @@ async def test_dim_down_feedback_steps(
     
     await verify_timed_telegrams(mock,test_data)
 
+    await mock.advance_time_ms(1000)
+    assert len(mock.tx_telegrams) == 21
+
 
 @pytest.mark.parametrize(
     "mock",
-    [
-        # "Disabled_NoEntity",
-        {"mode":"Step",                                     "dimm_no_off": True},
-        {"mode":"TransitionStep",                           "dimm_no_off": True},
-        {"mode":"Transition",                               "dimm_no_off": True},
-        {"mode":"TransitionStep_TransitionNotSupported",    "dimm_no_off": True},
-        {"mode":"Transition_TransitionNotSupported",        "dimm_no_off": True},
-    ],
-    indirect=True,
+    dim_no_off_combinations,
+    indirect=["mock"],
 )
 async def test_dim_down_no_off_feedback_steps(
     mock,
@@ -801,16 +732,8 @@ async def test_dim_down_no_off_feedback_steps(
 
 @pytest.mark.parametrize(
     "mock",
-    [
-        # "Disabled_NoEntity",
-        # "Disabled",
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations_with_dim_entity,
+    indirect=["mock"],
 )
 async def test_dim_up_stop(
     mock,
@@ -843,25 +766,17 @@ async def test_dim_up_stop(
 
     await mock.advance_time_ms(10)
 
-    if mock.mode in ["Step"]:
+    if ( not mock.transition_supported ) or mock.dimm_entity == 'input_boolean':
         assert len(mock.tx_telegrams) == 0
     else:
         assert len(mock.tx_telegrams) == 1
-        assert mock.tx_telegrams[0].dpt.payload in [40,41,42,43] 
+        assert mock.tx_telegrams[0].dpt.payload in [39,40,41,42,43] 
     
-
 
 @pytest.mark.parametrize(
     "mock",
-    [
-        # "Disabled", # No Entity
-        "Step",
-        "TransitionStep",
-        "Transition",
-        "TransitionStep_TransitionNotSupported",
-        "Transition_TransitionNotSupported",
-    ],
-    indirect=True,
+    all_input_combinations_with_dim_entity,
+    indirect=["mock"],
 )
 async def test_dim_down_stop(
     mock,
@@ -892,8 +807,8 @@ async def test_dim_down_stop(
 
     await mock.advance_time_ms(1)
 
-    if mock.mode in ["Step"]:
+    if ( not mock.transition_supported)  or mock.dimm_entity == 'input_boolean':
         assert len(mock.tx_telegrams) == 0
     else:
         assert len(mock.tx_telegrams) == 1
-        assert mock.tx_telegrams[0].dpt.payload in [213,214,215] 
+        assert mock.tx_telegrams[0].dpt.payload in [213,214,215,216] 
