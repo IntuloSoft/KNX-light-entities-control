@@ -105,6 +105,9 @@ async def mock(request, hass: HomeAssistant):
         for key, value in request.param.items():
             if key != "mode":
                 inputs[key] = value
+
+    if mode in ["Transition", "Transiton_TransitioNotSupported"]:
+        inputs["reduce_server_load"] = True
     
     if mode == "Step":
         await mock.add_input_boolean("dimmer")
@@ -654,7 +657,6 @@ async def test_dim_up_feedback_steps(
         {"time": 18 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(234))},
         {"time": 19 * INTERVAL_MS,                 "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(247))},
         {"time": 19 * INTERVAL_MS + FINAL_STEP_MS, "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255))},
-        # {"time": 19 * INTERVAL_MS + FINAL_STEP_MS, "window": (  -MARGIN_MS, +MARGIN_MS), "telegram": KnxTelegram("1/1/4", GroupValueWrite, DPT.percent(255))},
     ]
 
     await verify_timed_telegrams(mock,test_data)
