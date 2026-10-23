@@ -3,7 +3,7 @@ blueprint:
   description: |
     Use KNX to control an Home Assistant light entity with optional switching, relative dimming, absolute dimming, tunable white, and RGB color telegrams (+ state feedback)
     **Version**: 2026.10.1
-  author: Pieter Cardoen - based on kalhimeo
+  author: Pieter Cardoen - based on Kalhimeo's KNX Light Entities Control blueprint
   source_url: https://github.com/IntuloSoft/KNX-light-entities-control/raw/refs/heads/main/blueprints/knx-light-entities-control.yaml
   domain: automation
   input:
@@ -460,6 +460,7 @@ actions:
                                 - action: knx.send
                                   data:
                                     address: "{{ value_state_address }}"
+                                    type: percentU8
                                     payload: "{{ ((((((((states(dimm_entity) | float(0)) - (states(dimm_entity) | int)) * 1000) + dimm_step) | round(0,'trunc') | int(0)), 255) | min), 0) | max }}"
                         - if:
                             - condition: template
@@ -580,6 +581,7 @@ actions:
                                 - action: knx.send
                                   data:
                                     address: "{{ value_state_address }}"
+                                    type: percentU8
                                     payload: "{{ new_brightness }}"
                             - action: input_number.set_value
                               data:
@@ -627,6 +629,7 @@ actions:
         - action: knx.send
           data:
             address: "{{ value_state_address }}"
+            type: percentU8
             payload: "{{ state_attr(light_entity, 'brightness') | int(default=0) }}"
             response: true
 
@@ -829,11 +832,13 @@ actions:
                 - action: knx.send
                   data:
                     address: "{{ value_state_address }}"
+                    type: percentU8
                     payload: "{{ trigger.to_state.attributes.brightness | int(default=0) }}"
               else:
                 - action: knx.send
                   data:
                     address: "{{ value_state_address }}"
+                    type: percentU8
                     payload: 0
 
         # TEMPERATURE change
